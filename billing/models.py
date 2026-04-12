@@ -14,6 +14,7 @@ class Service(models.Model):
 
 
 class ServiceMaterial(models.Model):
+    'материал для сервиса'
     service = models.ForeignKey(Service, on_delete=models.CASCADE)
     material = models.ForeignKey(Material, on_delete=models.CASCADE)
     qty = models.IntegerField()
