@@ -4,296 +4,6 @@
 
 {% block content %}
 <div class="page-card p-4">
-    <h2 class="mb-3">Лист медсестры</h2>
-
-    <div class="row g-3 mb-4">
-        <div class="col-md-5">
-            <label class="form-label">Госпитализация</label>
-            <select id="admissionId" class="form-select" onchange="loadDailySheet()"></select>
-        </div>
-
-        <div class="col-md-3">
-            <label class="form-label">Дата</label>
-            <input type="date" id="sheetDate" class="form-control">
-        </div>
-
-        <div class="col-md-3 d-flex align-items-end">
-            <button class="btn btn-primary w-100" onclick="loadDailySheet()">Загрузить</button>
-        </div>
-    </div>
-
-    <div id="alertBox"></div>
-
-    <div id="patientInfo" class="mb-4"></div>
-    <div id="summaryBlock" class="mb-4"></div>
-    <div id="prescriptionsBlock" class="mb-4"></div>
-    <div id="proceduresBlock"></div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-
-let servicesCache = [];
-let admissionsCache = [];
-
-/* ================= CSRF ================= */
-
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie) {
-        document.cookie.split(";").forEach(cookie => {
-            cookie = cookie.trim();
-            if (cookie.startsWith(name + "=")) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            }
-        });
-    }
-    return cookieValue;
-}
-
-axios.defaults.headers.common["X-CSRFToken"] = getCookie("csrftoken");
-axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
-
-/* ================= INIT ================= */
-
-document.addEventListener("DOMContentLoaded", function () {
-    document.getElementById("sheetDate").value =
-        new Date().toISOString().split("T")[0];
-
-    loadAdmissions();
-    loadServices();
-});
-
-/* ================= HELPERS ================= */
-
-function showAlert(msg, type="danger") {
-    document.getElementById("alertBox").innerHTML =
-        `<div class="alert alert-${type}">${msg}</div>`;
-}
-
-function clearAlert() {
-    document.getElementById("alertBox").innerHTML = "";
-}
-
-function escapeHtml(val) {
-    if (!val) return "";
-    return String(val)
-        .replace(/&/g,"&amp;")
-        .replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;");
-}
-
-function formatDateTime(val){
-    if (!val) return "-";
-    return new Date(val).toLocaleString("ru-RU");
-}
-
-function getNowISO(){
-    return new Date().toISOString();
-}
-
-/* ================= LOAD DATA ================= */
-
-function loadAdmissions() {
-    axios.get("/api/inpatient-admissions/")
-        .then(res=>{
-            admissionsCache = res.data;
-            renderAdmissions();
-        });
-}
-
-function renderAdmissions(){
-    let select = document.getElementById("admissionId");
-
-    let html = "";
-    admissionsCache.forEach(a=>{
-        html += `
-        <option value="${a.id}">
-            #${a.id} | ${a.patient_name} | Статус: ${a.status_display}
-        </option>`;
-    });
-
-    select.innerHTML = html;
-
-    if (admissionsCache.length){
-        select.value = admissionsCache[0].id;
-        loadDailySheet();
-    }
-}
-
-function loadServices(){
-    axios.get("/api/services/")
-        .then(res=> servicesCache = res.data);
-}
-
-function loadDailySheet(){
-    let id = document.getElementById("admissionId").value;
-    let date = document.getElementById("sheetDate").value;
-
-    axios.get(`/api/inpatient-admissions/${id}/daily_sheet/?date=${date}`)
-        .then(res=>{
-            renderPatient(res.data);
-            renderPrescriptions(res.data.prescriptions);
-            renderProcedures(res.data.procedures);
-            renderSummary(res.data.prescriptions);
-        });
-}
-
-/* ================= PATIENT ================= */
-
-function renderPatient(d){
-    document.getElementById("patientInfo").innerHTML = `
-    <div class="card p-3">
-        <b>${d.patient_name}</b> |
-        ${d.doctor_name} |
-        ${d.ward_name} |
-        ${d.date}
-    </div>`;
-}
-
-/* ================= PRESCRIPTIONS ================= */
-
-function getCardClass(p){
-    let rem = p.remaining_today_count;
-    let hasCancel = (p.executions||[]).some(e=>e.status==="cancelled");
-
-    if (hasCancel) return "border-danger bg-danger-subtle";
-    if (rem > 0) return "border-warning bg-warning-subtle";
-    return "border-success bg-success-subtle";
-}
-
-function getStatusBadge(p){
-    let rem = p.remaining_today_count;
-
-    if (rem > 0)
-        return `<span class="badge bg-warning text-dark">Осталось ${rem}</span>`;
-
-    return `<span class="badge bg-success">Выполнено</span>`;
-}
-
-function renderPrescriptions(list){
-    let html = `<div class="card"><div class="card-body">`;
-
-    list.forEach(p=>{
-        html += `
-        <div class="p-3 mb-3 border rounded ${getCardClass(p)}">
-
-            <div class="d-flex justify-content-between">
-                <b>${p.medication_name}</b>
-                ${getStatusBadge(p)}
-            </div>
-
-            <div class="small text-muted mb-2">
-                ${p.dosage} | ${p.frequency} раз
-            </div>
-
-            <button class="btn btn-success btn-sm"
-                onclick="quickExecution(${p.id}, ${p.remaining_today_count})">
-                Выполнить сейчас
-            </button>
-
-            <table class="table mt-2">
-                <tr><th>Время</th><th>Статус</th></tr>
-        `;
-
-        (p.executions||[]).forEach(e=>{
-            html+=`
-            <tr>
-                <td>${formatDateTime(e.execution_time)}</td>
-                <td>${e.status}</td>
-            </tr>`;
-        });
-
-        html += "</table></div>";
-    });
-
-    html += "</div></div>";
-
-    document.getElementById("prescriptionsBlock").innerHTML = html;
-}
-
-/* ================= QUICK EXEC ================= */
-
-function quickExecution(id, remaining){
-    if (remaining<=0){
-        showAlert("Уже выполнено");
-        return;
-    }
-
-    axios.post("/api/prescription-executions/", {
-        prescription: id,
-        execution_time: getNowISO(),
-        qty:1,
-        status:"draft"
-    }).then(()=>{
-        loadDailySheet();
-    });
-}
-
-/* ================= PROCEDURES ================= */
-
-function renderProcedures(list){
-    let html = `<div class="card p-3">Процедуры</div>`;
-    document.getElementById("proceduresBlock").innerHTML = html;
-}
-
-function renderSummary(prescriptions) {
-    let total = prescriptions.length;
-    let done = 0;
-    let pending = 0;
-    let cancelled = 0;
-
-    prescriptions.forEach(p => {
-        let rem = p.remaining_today_count;
-        let hasCancel = (p.executions||[]).some(e=>e.status==="cancelled");
-
-        if (hasCancel) cancelled++;
-        else if (rem === 0) done++;
-        else pending++;
-    });
-
-    document.getElementById("summaryBlock").innerHTML = `
-    <div class="row g-3">
-        <div class="col-md-3">
-            <div class="card p-3 text-center bg-light">
-                <h5>${total}</h5>
-                <small>Назначений</small>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card p-3 text-center bg-success-subtle">
-                <h5>${done}</h5>
-                <small>Выполнено</small>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card p-3 text-center bg-warning-subtle">
-                <h5>${pending}</h5>
-                <small>Осталось</small>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card p-3 text-center bg-danger-subtle">
-                <h5>${cancelled}</h5>
-                <small>Отменено</small>
-            </div>
-        </div>
-    </div>`;
-}
-
-</script>
-
-
-{% endblock %}
-
-
-<!-- {% extends "base.html" %}
-
-{% block title %}Лист медсестры{% endblock %}
-
-{% block content %}
-<div class="page-card p-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="mb-1">Лист медсестры</h2>
@@ -322,6 +32,7 @@ function renderSummary(prescriptions) {
     <div id="alertBox"></div>
 
     <div id="patientInfo" class="mb-4"></div>
+    <div id="summaryBlock" class="mb-4"></div>
     <div id="prescriptionsBlock" class="mb-4"></div>
     <div id="proceduresBlock"></div>
 </div>
@@ -332,16 +43,34 @@ function renderSummary(prescriptions) {
     let servicesCache = [];
     let admissionsCache = [];
 
+    function getCookie(name) {
+        let cookieValue = null;
+
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+
+                if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie("csrftoken");
+    axios.defaults.headers.common["X-CSRFToken"] = csrftoken;
+    axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
+
     document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("sheetDate").value = new Date().toISOString().split("T")[0];
         loadAdmissions();
         loadServices();
     });
-
-    const csrftoken = getCookie("csrftoken");
-
-    axios.defaults.headers.common["X-CSRFToken"] = csrftoken;
-    axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
 
     function showAlert(message, type = "danger") {
         document.getElementById("alertBox").innerHTML = `
@@ -396,11 +125,8 @@ function renderSummary(prescriptions) {
 
         select.innerHTML = options;
 
-        // 🔥 Автовыбор первой записи
         if (admissionsCache.length > 0) {
             select.value = admissionsCache[0].id;
-
-            // 🔥 Автозагрузка листа
             loadDailySheet();
         }
     }
@@ -435,6 +161,7 @@ function renderSummary(prescriptions) {
         document.getElementById("patientInfo").innerHTML = `
             <div class="alert alert-info">Загрузка данных...</div>
         `;
+        document.getElementById("summaryBlock").innerHTML = "";
         document.getElementById("prescriptionsBlock").innerHTML = "";
         document.getElementById("proceduresBlock").innerHTML = "";
 
@@ -453,6 +180,7 @@ function renderSummary(prescriptions) {
 
     function renderDailySheet(data) {
         renderPatientInfo(data);
+        renderSummary(data.prescriptions || []);
         renderPrescriptions(data.prescriptions || []);
         renderProcedures(data.procedures || []);
     }
@@ -487,9 +215,118 @@ function renderSummary(prescriptions) {
         `;
     }
 
+    function renderSummary(prescriptions) {
+        let total = prescriptions.length;
+        let done = 0;
+        let pending = 0;
+        let cancelled = 0;
+
+        prescriptions.forEach(function(p) {
+            let rem = Number(p.remaining_today_count ?? 0);
+            let hasCancel = (p.executions || []).some(e => e.status === "cancelled");
+
+            if (hasCancel) {
+                cancelled++;
+            } else if (rem === 0) {
+                done++;
+            } else {
+                pending++;
+            }
+        });
+
+        document.getElementById("summaryBlock").innerHTML = `
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="card p-3 text-center bg-light border-0 shadow-sm">
+                        <h5 class="mb-1">${total}</h5>
+                        <small class="text-muted">Назначений</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3 text-center bg-success-subtle border-0 shadow-sm">
+                        <h5 class="mb-1">${done}</h5>
+                        <small class="text-muted">Выполнено</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3 text-center bg-warning-subtle border-0 shadow-sm">
+                        <h5 class="mb-1">${pending}</h5>
+                        <small class="text-muted">Осталось</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3 text-center bg-danger-subtle border-0 shadow-sm">
+                        <h5 class="mb-1">${cancelled}</h5>
+                        <small class="text-muted">Отменено</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function getPrescriptionCardClass(prescription) {
+        const remaining = Number(prescription.remaining_today_count ?? 0);
+        const executions = prescription.executions || [];
+
+        const hasCancelled = executions.some(e => e.status === "cancelled");
+        const hasConfirmed = executions.some(e => e.status === "confirmed");
+
+        if (hasCancelled) {
+            return "border-danger bg-danger-subtle";
+        }
+
+        if (remaining > 0) {
+            return "border-warning bg-warning-subtle";
+        }
+
+        if (remaining === 0 && hasConfirmed) {
+            return "border-success bg-success-subtle";
+        }
+
+        return "border-secondary-subtle";
+    }
+
+    function renderPrescriptionSummaryStatus(prescription) {
+        const remaining = Number(prescription.remaining_today_count ?? 0);
+        const confirmed = Number(prescription.confirmed_today_count ?? 0);
+        const executions = prescription.executions || [];
+
+        const hasCancelled = executions.some(e => e.status === "cancelled");
+
+        if (hasCancelled) {
+            return `
+                <span class="badge bg-danger">
+                    Есть отменённые выполнения
+                </span>
+            `;
+        }
+
+        if (remaining > 0) {
+            return `
+                <span class="badge bg-warning text-dark">
+                    Осталось выполнить сегодня: ${escapeHtml(String(remaining))}
+                </span>
+            `;
+        }
+
+        if (remaining === 0 && confirmed > 0) {
+            return `
+                <span class="badge bg-success">
+                    Назначение на сегодня выполнено
+                </span>
+            `;
+        }
+
+        return `
+            <span class="badge bg-secondary">
+                Нет выполнений
+            </span>
+        `;
+    }
+
     function renderPrescriptions(prescriptions) {
         let html = `
-            <div class="border rounded p-3 mb-3 ${getPrescriptionCardClass(prescription)}">
+            <div class="card border-0 shadow-sm">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Назначения</h5>
                 </div>
@@ -501,7 +338,7 @@ function renderSummary(prescriptions) {
         } else {
             prescriptions.forEach(function(prescription) {
                 html += `
-                    <div class="border rounded p-3 mb-3">
+                    <div class="border rounded p-3 mb-3 ${getPrescriptionCardClass(prescription)}">
                         <div class="row g-3 mb-3">
                             <div class="col-md-3">
                                 <div class="text-muted small">Лекарство</div>
@@ -549,6 +386,7 @@ function renderSummary(prescriptions) {
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <h6 class="mb-0">Добавить выполнение</h6>
                                     <button class="btn btn-success btn-sm"
+                                            ${Number(prescription.remaining_today_count ?? 0) <= 0 ? "disabled" : ""}
                                             onclick="quickExecution(${prescription.id}, ${prescription.remaining_today_count ?? 0})">
                                         Выполнить сейчас
                                     </button>
@@ -558,16 +396,16 @@ function renderSummary(prescriptions) {
                                     <div class="col-md-5">
                                         <label class="form-label">Дата и время</label>
                                         <input type="datetime-local"
-                                            class="form-control"
-                                            id="execution_time_${prescription.id}">
+                                               class="form-control"
+                                               id="execution_time_${prescription.id}">
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Количество</label>
                                         <input type="number"
-                                            min="1"
-                                            class="form-control"
-                                            id="execution_qty_${prescription.id}"
-                                            value="1">
+                                               min="1"
+                                               class="form-control"
+                                               id="execution_qty_${prescription.id}"
+                                               value="1">
                                     </div>
                                     <div class="col-md-4 d-flex align-items-end">
                                         <button class="btn btn-primary w-100"
@@ -852,7 +690,7 @@ function renderSummary(prescriptions) {
             });
     }
 
-        function quickExecution(prescriptionId, remainingTodayCount) {
+    function quickExecution(prescriptionId, remainingTodayCount) {
         clearAlert();
 
         if (remainingTodayCount !== undefined && Number(remainingTodayCount) <= 0) {
@@ -876,9 +714,7 @@ function renderSummary(prescriptions) {
                 console.error(error);
                 showAlert(getErrorMessage(error, "Не удалось добавить быстрое выполнение"));
             });
-        }
-
-
+    }
 
     function createProcedure(admissionId) {
         clearAlert();
@@ -1069,123 +905,5 @@ function renderSummary(prescriptions) {
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
     }
-
-
-    function getCookie(name) {
-    let cookieValue = null;
-
-    if (document.cookie && document.cookie !== "") {
-        const cookies = document.cookie.split(";");
-
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-
-            if (cookie.substring(0, name.length + 1) === (name + "=")) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-
-    return cookieValue;
-}
-
-function getPrescriptionCardClass(prescription) {
-    const remaining = Number(prescription.remaining_today_count ?? 0);
-    const executions = prescription.executions || [];
-
-    const hasCancelled = executions.some(e => e.status === "cancelled");
-    const hasConfirmed = executions.some(e => e.status === "confirmed");
-
-    if (hasCancelled) {
-        return "border-danger bg-danger-subtle";
-    }
-
-    if (remaining > 0) {
-        return "border-warning bg-warning-subtle";
-    }
-
-    if (remaining === 0 && hasConfirmed) {
-        return "border-success bg-success-subtle";
-    }
-
-    return "border-secondary-subtle";
-}
-
-function renderPrescriptionSummaryStatus(prescription) {
-    const remaining = Number(prescription.remaining_today_count ?? 0);
-    const confirmed = Number(prescription.confirmed_today_count ?? 0);
-    const executions = prescription.executions || [];
-
-    const hasCancelled = executions.some(e => e.status === "cancelled");
-
-    if (hasCancelled) {
-        return `
-            <span class="badge bg-danger">
-                Есть отменённые выполнения
-            </span>
-        `;
-    }
-
-    if (remaining > 0) {
-        return `
-            <span class="badge bg-warning text-dark">
-                Осталось выполнить сегодня: ${escapeHtml(String(remaining))}
-            </span>
-        `;
-    }
-
-    if (remaining === 0 && confirmed > 0) {
-        return `
-            <span class="badge bg-success">
-                Назначение на сегодня выполнено
-            </span>
-        `;
-    }
-
-    return `
-        <span class="badge bg-secondary">
-            Нет выполнений
-        </span>
-    `;
-}
-
-function renderPrescriptionSummaryStatus(prescription) {
-    const remaining = Number(prescription.remaining_today_count ?? 0);
-    const confirmed = Number(prescription.confirmed_today_count ?? 0);
-    const executions = prescription.executions || [];
-
-    const hasCancelled = executions.some(e => e.status === "cancelled");
-
-    if (hasCancelled) {
-        return `
-            <span class="badge bg-danger">
-                Есть отменённые выполнения
-            </span>
-        `;
-    }
-
-    if (remaining > 0) {
-        return `
-            <span class="badge bg-warning text-dark">
-                Осталось выполнить сегодня: ${escapeHtml(String(remaining))}
-            </span>
-        `;
-    }
-
-    if (remaining === 0 && confirmed > 0) {
-        return `
-            <span class="badge bg-success">
-                Назначение на сегодня выполнено
-            </span>
-        `;
-    }
-
-    return `
-        <span class="badge bg-secondary">
-            Нет выполнений
-        </span>
-    `;
-}
 </script>
-{% endblock %} -->
+{% endblock %}
