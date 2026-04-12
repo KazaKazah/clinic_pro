@@ -1,0 +1,1191 @@
+{% extends "base.html" %}
+
+{% block title %}Лист медсестры{% endblock %}
+
+{% block content %}
+<div class="page-card p-4">
+    <h2 class="mb-3">Лист медсестры</h2>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-5">
+            <label class="form-label">Госпитализация</label>
+            <select id="admissionId" class="form-select" onchange="loadDailySheet()"></select>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Дата</label>
+            <input type="date" id="sheetDate" class="form-control">
+        </div>
+
+        <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary w-100" onclick="loadDailySheet()">Загрузить</button>
+        </div>
+    </div>
+
+    <div id="alertBox"></div>
+
+    <div id="patientInfo" class="mb-4"></div>
+    <div id="summaryBlock" class="mb-4"></div>
+    <div id="prescriptionsBlock" class="mb-4"></div>
+    <div id="proceduresBlock"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+
+let servicesCache = [];
+let admissionsCache = [];
+
+/* ================= CSRF ================= */
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie) {
+        document.cookie.split(";").forEach(cookie => {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name + "=")) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            }
+        });
+    }
+    return cookieValue;
+}
+
+axios.defaults.headers.common["X-CSRFToken"] = getCookie("csrftoken");
+axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
+
+/* ================= INIT ================= */
+
+document.addEventListener("DOMContentLoaded", function () {
+    document.getElementById("sheetDate").value =
+        new Date().toISOString().split("T")[0];
+
+    loadAdmissions();
+    loadServices();
+});
+
+/* ================= HELPERS ================= */
+
+function showAlert(msg, type="danger") {
+    document.getElementById("alertBox").innerHTML =
+        `<div class="alert alert-${type}">${msg}</div>`;
+}
+
+function clearAlert() {
+    document.getElementById("alertBox").innerHTML = "";
+}
+
+function escapeHtml(val) {
+    if (!val) return "";
+    return String(val)
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;");
+}
+
+function formatDateTime(val){
+    if (!val) return "-";
+    return new Date(val).toLocaleString("ru-RU");
+}
+
+function getNowISO(){
+    return new Date().toISOString();
+}
+
+/* ================= LOAD DATA ================= */
+
+function loadAdmissions() {
+    axios.get("/api/inpatient-admissions/")
+        .then(res=>{
+            admissionsCache = res.data;
+            renderAdmissions();
+        });
+}
+
+function renderAdmissions(){
+    let select = document.getElementById("admissionId");
+
+    let html = "";
+    admissionsCache.forEach(a=>{
+        html += `
+        <option value="${a.id}">
+            #${a.id} | ${a.patient_name} | Статус: ${a.status_display}
+        </option>`;
+    });
+
+    select.innerHTML = html;
+
+    if (admissionsCache.length){
+        select.value = admissionsCache[0].id;
+        loadDailySheet();
+    }
+}
+
+function loadServices(){
+    axios.get("/api/services/")
+        .then(res=> servicesCache = res.data);
+}
+
+function loadDailySheet(){
+    let id = document.getElementById("admissionId").value;
+    let date = document.getElementById("sheetDate").value;
+
+    axios.get(`/api/inpatient-admissions/${id}/daily_sheet/?date=${date}`)
+        .then(res=>{
+            renderPatient(res.data);
+            renderPrescriptions(res.data.prescriptions);
+            renderProcedures(res.data.procedures);
+            renderSummary(res.data.prescriptions);
+        });
+}
+
+/* ================= PATIENT ================= */
+
+function renderPatient(d){
+    document.getElementById("patientInfo").innerHTML = `
+    <div class="card p-3">
+        <b>${d.patient_name}</b> |
+        ${d.doctor_name} |
+        ${d.ward_name} |
+        ${d.date}
+    </div>`;
+}
+
+/* ================= PRESCRIPTIONS ================= */
+
+function getCardClass(p){
+    let rem = p.remaining_today_count;
+    let hasCancel = (p.executions||[]).some(e=>e.status==="cancelled");
+
+    if (hasCancel) return "border-danger bg-danger-subtle";
+    if (rem > 0) return "border-warning bg-warning-subtle";
+    return "border-success bg-success-subtle";
+}
+
+function getStatusBadge(p){
+    let rem = p.remaining_today_count;
+
+    if (rem > 0)
+        return `<span class="badge bg-warning text-dark">Осталось ${rem}</span>`;
+
+    return `<span class="badge bg-success">Выполнено</span>`;
+}
+
+function renderPrescriptions(list){
+    let html = `<div class="card"><div class="card-body">`;
+
+    list.forEach(p=>{
+        html += `
+        <div class="p-3 mb-3 border rounded ${getCardClass(p)}">
+
+            <div class="d-flex justify-content-between">
+                <b>${p.medication_name}</b>
+                ${getStatusBadge(p)}
+            </div>
+
+            <div class="small text-muted mb-2">
+                ${p.dosage} | ${p.frequency} раз
+            </div>
+
+            <button class="btn btn-success btn-sm"
+                onclick="quickExecution(${p.id}, ${p.remaining_today_count})">
+                Выполнить сейчас
+            </button>
+
+            <table class="table mt-2">
+                <tr><th>Время</th><th>Статус</th></tr>
+        `;
+
+        (p.executions||[]).forEach(e=>{
+            html+=`
+            <tr>
+                <td>${formatDateTime(e.execution_time)}</td>
+                <td>${e.status}</td>
+            </tr>`;
+        });
+
+        html += "</table></div>";
+    });
+
+    html += "</div></div>";
+
+    document.getElementById("prescriptionsBlock").innerHTML = html;
+}
+
+/* ================= QUICK EXEC ================= */
+
+function quickExecution(id, remaining){
+    if (remaining<=0){
+        showAlert("Уже выполнено");
+        return;
+    }
+
+    axios.post("/api/prescription-executions/", {
+        prescription: id,
+        execution_time: getNowISO(),
+        qty:1,
+        status:"draft"
+    }).then(()=>{
+        loadDailySheet();
+    });
+}
+
+/* ================= PROCEDURES ================= */
+
+function renderProcedures(list){
+    let html = `<div class="card p-3">Процедуры</div>`;
+    document.getElementById("proceduresBlock").innerHTML = html;
+}
+
+function renderSummary(prescriptions) {
+    let total = prescriptions.length;
+    let done = 0;
+    let pending = 0;
+    let cancelled = 0;
+
+    prescriptions.forEach(p => {
+        let rem = p.remaining_today_count;
+        let hasCancel = (p.executions||[]).some(e=>e.status==="cancelled");
+
+        if (hasCancel) cancelled++;
+        else if (rem === 0) done++;
+        else pending++;
+    });
+
+    document.getElementById("summaryBlock").innerHTML = `
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="card p-3 text-center bg-light">
+                <h5>${total}</h5>
+                <small>Назначений</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 text-center bg-success-subtle">
+                <h5>${done}</h5>
+                <small>Выполнено</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 text-center bg-warning-subtle">
+                <h5>${pending}</h5>
+                <small>Осталось</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 text-center bg-danger-subtle">
+                <h5>${cancelled}</h5>
+                <small>Отменено</small>
+            </div>
+        </div>
+    </div>`;
+}
+
+</script>
+
+
+{% endblock %}
+
+
+<!-- {% extends "base.html" %}
+
+{% block title %}Лист медсестры{% endblock %}
+
+{% block content %}
+<div class="page-card p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Лист медсестры</h2>
+            <p class="text-muted mb-0">Просмотр назначений и процедур на выбранную дату</p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-5">
+            <label for="admissionId" class="form-label">Госпитализация</label>
+            <select id="admissionId" class="form-select" onchange="loadDailySheet()">
+                <option value="">Загрузка...</option>
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label for="sheetDate" class="form-label">Дата</label>
+            <input type="date" id="sheetDate" class="form-control">
+        </div>
+
+        <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary w-100" onclick="loadDailySheet()">Загрузить</button>
+        </div>
+    </div>
+
+    <div id="alertBox"></div>
+
+    <div id="patientInfo" class="mb-4"></div>
+    <div id="prescriptionsBlock" class="mb-4"></div>
+    <div id="proceduresBlock"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let servicesCache = [];
+    let admissionsCache = [];
+
+    document.addEventListener("DOMContentLoaded", function () {
+        document.getElementById("sheetDate").value = new Date().toISOString().split("T")[0];
+        loadAdmissions();
+        loadServices();
+    });
+
+    const csrftoken = getCookie("csrftoken");
+
+    axios.defaults.headers.common["X-CSRFToken"] = csrftoken;
+    axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
+
+    function showAlert(message, type = "danger") {
+        document.getElementById("alertBox").innerHTML = `
+            <div class="alert alert-${type}" role="alert">
+                ${message}
+            </div>
+        `;
+    }
+
+    function clearAlert() {
+        document.getElementById("alertBox").innerHTML = "";
+    }
+
+    function loadAdmissions() {
+        axios.get("/api/inpatient-admissions/")
+            .then(function(response) {
+                admissionsCache = response.data || [];
+                renderAdmissionOptions();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert("Не удалось загрузить список госпитализаций");
+                document.getElementById("admissionId").innerHTML =
+                    `<option value="">Не удалось загрузить</option>`;
+            });
+    }
+
+    function renderAdmissionOptions() {
+        const select = document.getElementById("admissionId");
+
+        if (!admissionsCache.length) {
+            select.innerHTML = `<option value="">Нет активных госпитализаций</option>`;
+            return;
+        }
+
+        let options = `<option value="">Выберите госпитализацию</option>`;
+
+        admissionsCache.forEach(function(admission) {
+            const label = [
+                `#${admission.id}`,
+                admission.patient_name || "Без пациента",
+                admission.ward_name ? `Палата: ${admission.ward_name}` : "",
+                admission.status_display ? `Статус: ${admission.status_display}` : ""
+            ].filter(Boolean).join(" | ");
+
+            options += `
+                <option value="${escapeHtml(admission.id)}">
+                    ${escapeHtml(label)}
+                </option>
+            `;
+        });
+
+        select.innerHTML = options;
+
+        // 🔥 Автовыбор первой записи
+        if (admissionsCache.length > 0) {
+            select.value = admissionsCache[0].id;
+
+            // 🔥 Автозагрузка листа
+            loadDailySheet();
+        }
+    }
+
+    function loadServices() {
+        axios.get("/api/services/")
+            .then(function(response) {
+                servicesCache = response.data || [];
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert("Не удалось загрузить список услуг");
+            });
+    }
+
+    function loadDailySheet() {
+        const admissionId = document.getElementById("admissionId").value;
+        const date = document.getElementById("sheetDate").value;
+
+        if (!admissionId) {
+            showAlert("Выберите госпитализацию", "warning");
+            return;
+        }
+
+        if (!date) {
+            showAlert("Укажите дату", "warning");
+            return;
+        }
+
+        clearAlert();
+
+        document.getElementById("patientInfo").innerHTML = `
+            <div class="alert alert-info">Загрузка данных...</div>
+        `;
+        document.getElementById("prescriptionsBlock").innerHTML = "";
+        document.getElementById("proceduresBlock").innerHTML = "";
+
+        axios.get(`/api/inpatient-admissions/${admissionId}/daily_sheet/`, {
+            params: { date: date }
+        })
+        .then(function(response) {
+            renderDailySheet(response.data);
+        })
+        .catch(function(error) {
+            console.error(error);
+            document.getElementById("patientInfo").innerHTML = "";
+            showAlert("Не удалось загрузить лист медсестры");
+        });
+    }
+
+    function renderDailySheet(data) {
+        renderPatientInfo(data);
+        renderPrescriptions(data.prescriptions || []);
+        renderProcedures(data.procedures || []);
+    }
+
+    function renderPatientInfo(data) {
+        document.getElementById("patientInfo").innerHTML = `
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Информация о пациенте</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <div class="text-muted small">Пациент</div>
+                            <div class="fw-semibold">${escapeHtml(data.patient_name || "-")}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Врач</div>
+                            <div class="fw-semibold">${escapeHtml(data.doctor_name || "-")}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Палата</div>
+                            <div class="fw-semibold">${escapeHtml(data.ward_name || "-")}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Дата</div>
+                            <div class="fw-semibold">${escapeHtml(data.date || "-")}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderPrescriptions(prescriptions) {
+        let html = `
+            <div class="border rounded p-3 mb-3 ${getPrescriptionCardClass(prescription)}">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Назначения</h5>
+                </div>
+                <div class="card-body">
+        `;
+
+        if (!prescriptions.length) {
+            html += `<div class="text-muted">На выбранную дату назначений нет.</div>`;
+        } else {
+            prescriptions.forEach(function(prescription) {
+                html += `
+                    <div class="border rounded p-3 mb-3">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <div class="text-muted small">Лекарство</div>
+                                <div class="fw-semibold">${escapeHtml(prescription.medication_name || "-")}</div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-muted small">Дозировка</div>
+                                <div class="fw-semibold">${escapeHtml(prescription.dosage || "-")}</div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-muted small">Кратность</div>
+                                <div class="fw-semibold">${escapeHtml(String(prescription.frequency ?? "-"))}</div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-muted small">Длительность</div>
+                                <div class="fw-semibold">${escapeHtml(String(prescription.duration ?? "-"))}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Путь введения</div>
+                                <div class="fw-semibold">${escapeHtml(prescription.route || "-")}</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            ${renderPrescriptionSummaryStatus(prescription)}
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <div class="text-muted small">Комментарий</div>
+                                <div>${escapeHtml(prescription.note || "-")}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Подтверждено сегодня</div>
+                                <div class="fw-semibold">${escapeHtml(String(prescription.confirmed_today_count ?? 0))}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Осталось на сегодня</div>
+                                <div class="fw-semibold">${escapeHtml(String(prescription.remaining_today_count ?? 0))}</div>
+                            </div>
+                        </div>
+
+                        <div class="card bg-light border-0 mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0">Добавить выполнение</h6>
+                                    <button class="btn btn-success btn-sm"
+                                            onclick="quickExecution(${prescription.id}, ${prescription.remaining_today_count ?? 0})">
+                                        Выполнить сейчас
+                                    </button>
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-md-5">
+                                        <label class="form-label">Дата и время</label>
+                                        <input type="datetime-local"
+                                            class="form-control"
+                                            id="execution_time_${prescription.id}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Количество</label>
+                                        <input type="number"
+                                            min="1"
+                                            class="form-control"
+                                            id="execution_qty_${prescription.id}"
+                                            value="1">
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-end">
+                                        <button class="btn btn-primary w-100"
+                                                onclick="createExecution(${prescription.id})">
+                                            Добавить выполнение
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-bordered align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Время</th>
+                                        <th>Кол-во</th>
+                                        <th>Исполнил</th>
+                                        <th>Статус</th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+
+                const executions = prescription.executions || [];
+                if (!executions.length) {
+                    html += `
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">
+                                Выполнений за выбранную дату нет
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    executions.forEach(function(execution) {
+                        html += `
+                            <tr>
+                                <td>${escapeHtml(formatDateTime(execution.execution_time))}</td>
+                                <td>${escapeHtml(String(execution.qty ?? "-"))}</td>
+                                <td>${escapeHtml(execution.performed_by_name || "-")}</td>
+                                <td>${renderStatusBadge(execution.status)}</td>
+                                <td>${renderExecutionActions(execution)}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        html += `
+                </div>
+            </div>
+        `;
+
+        document.getElementById("prescriptionsBlock").innerHTML = html;
+
+        prescriptions.forEach(function(prescription) {
+            const dtInput = document.getElementById(`execution_time_${prescription.id}`);
+            if (dtInput && !dtInput.value) {
+                dtInput.value = getCurrentDatetimeLocal();
+            }
+        });
+    }
+
+    function renderProcedures(procedures) {
+        const admissionId = document.getElementById("admissionId").value;
+
+        let html = `
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Процедуры</h5>
+                </div>
+                <div class="card-body">
+
+                    <div class="card bg-light border-0 mb-4">
+                        <div class="card-body">
+                            <h6 class="mb-3">Добавить процедуру</h6>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label">Услуга</label>
+                                    <select class="form-select" id="procedure_service_id">
+                                        ${renderServiceOptions()}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Дата и время</label>
+                                    <input type="datetime-local"
+                                           class="form-control"
+                                           id="procedure_date">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Количество</label>
+                                    <input type="number"
+                                           min="1"
+                                           class="form-control"
+                                           id="procedure_qty"
+                                           value="1">
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <button class="btn btn-primary w-100"
+                                            onclick="createProcedure(${admissionId})">
+                                        Добавить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+        `;
+
+        if (!procedures.length) {
+            html += `<div class="text-muted">На выбранную дату процедур нет.</div>`;
+        } else {
+            html += `
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Процедура</th>
+                                <th>Дата и время</th>
+                                <th>Кол-во</th>
+                                <th>Цена</th>
+                                <th>Сумма</th>
+                                <th>Статус</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            procedures.forEach(function(procedure) {
+                html += `
+                    <tr>
+                        <td>${escapeHtml(procedure.service_name || "-")}</td>
+                        <td>${escapeHtml(formatDateTime(procedure.procedure_date))}</td>
+                        <td>${escapeHtml(String(procedure.qty ?? "-"))}</td>
+                        <td>${escapeHtml(String(procedure.price ?? "-"))}</td>
+                        <td>${escapeHtml(String(procedure.total ?? "-"))}</td>
+                        <td>${renderStatusBadge(procedure.status)}</td>
+                        <td>${renderProcedureActions(procedure)}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        html += `
+                </div>
+            </div>
+        `;
+
+        document.getElementById("proceduresBlock").innerHTML = html;
+
+        const procedureDateInput = document.getElementById("procedure_date");
+        if (procedureDateInput && !procedureDateInput.value) {
+            procedureDateInput.value = getCurrentDatetimeLocal();
+        }
+    }
+
+    function renderServiceOptions() {
+        if (!servicesCache.length) {
+            return `<option value="">Нет доступных услуг</option>`;
+        }
+
+        let options = `<option value="">Выберите услугу</option>`;
+
+        servicesCache.forEach(function(service) {
+            options += `
+                <option value="${escapeHtml(service.id)}">
+                    ${escapeHtml(service.name)}${service.price ? " — " + escapeHtml(String(service.price)) : ""}
+                </option>
+            `;
+        });
+
+        return options;
+    }
+
+    function renderStatusBadge(status) {
+        const statusMap = {
+            draft: { className: "bg-warning text-dark", label: "Черновик" },
+            confirmed: { className: "bg-success", label: "Подтверждено" },
+            cancelled: { className: "bg-danger", label: "Отменено" }
+        };
+
+        const item = statusMap[status] || { className: "bg-secondary", label: status || "-" };
+        return `<span class="badge ${item.className}">${escapeHtml(item.label)}</span>`;
+    }
+
+    function renderExecutionActions(execution) {
+        if (execution.status === "draft") {
+            return `
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-success" onclick="confirmExecution(${execution.id})">
+                        Подтвердить
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteExecution(${execution.id})">
+                        Удалить
+                    </button>
+                </div>
+            `;
+        }
+
+        if (execution.status === "confirmed") {
+            return `
+                <button class="btn btn-sm btn-danger" onclick="cancelExecution(${execution.id})">
+                    Отменить
+                </button>
+            `;
+        }
+
+        return `<span class="text-muted">—</span>`;
+    }
+
+    function renderProcedureActions(procedure) {
+        if (procedure.status === "draft") {
+            return `
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-success" onclick="confirmProcedure(${procedure.id})">
+                        Подтвердить
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteProcedure(${procedure.id})">
+                        Удалить
+                    </button>
+                </div>
+            `;
+        }
+
+        if (procedure.status === "confirmed") {
+            return `
+                <button class="btn btn-sm btn-danger" onclick="cancelProcedure(${procedure.id})">
+                    Отменить
+                </button>
+            `;
+        }
+
+        return `<span class="text-muted">—</span>`;
+    }
+
+    function createExecution(prescriptionId) {
+        clearAlert();
+
+        const executionTime = document.getElementById(`execution_time_${prescriptionId}`).value;
+        const qty = document.getElementById(`execution_qty_${prescriptionId}`).value;
+
+        if (!executionTime) {
+            showAlert("Укажите дату и время выполнения", "warning");
+            return;
+        }
+
+        if (!qty || Number(qty) < 1) {
+            showAlert("Количество должно быть не меньше 1", "warning");
+            return;
+        }
+
+        const payload = {
+            prescription: prescriptionId,
+            execution_time: convertDatetimeLocalToIso(executionTime),
+            qty: Number(qty),
+            status: "draft"
+        };
+
+        axios.post("/api/prescription-executions/", payload)
+            .then(function() {
+                showAlert("Выполнение добавлено", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось добавить выполнение"));
+            });
+    }
+
+        function quickExecution(prescriptionId, remainingTodayCount) {
+        clearAlert();
+
+        if (remainingTodayCount !== undefined && Number(remainingTodayCount) <= 0) {
+            showAlert("На сегодня по этому назначению больше ничего не осталось", "warning");
+            return;
+        }
+
+        const payload = {
+            prescription: prescriptionId,
+            execution_time: new Date().toISOString(),
+            qty: 1,
+            status: "draft"
+        };
+
+        axios.post("/api/prescription-executions/", payload)
+            .then(function() {
+                showAlert("Быстрое выполнение добавлено", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось добавить быстрое выполнение"));
+            });
+        }
+
+
+
+    function createProcedure(admissionId) {
+        clearAlert();
+
+        const serviceId = document.getElementById("procedure_service_id").value;
+        const procedureDate = document.getElementById("procedure_date").value;
+        const qty = document.getElementById("procedure_qty").value;
+
+        if (!serviceId) {
+            showAlert("Выберите услугу", "warning");
+            return;
+        }
+
+        if (!procedureDate) {
+            showAlert("Укажите дату и время процедуры", "warning");
+            return;
+        }
+
+        if (!qty || Number(qty) < 1) {
+            showAlert("Количество процедуры должно быть не меньше 1", "warning");
+            return;
+        }
+
+        const payload = {
+            admission: Number(admissionId),
+            service: Number(serviceId),
+            procedure_date: convertDatetimeLocalToIso(procedureDate),
+            qty: Number(qty),
+            status: "draft"
+        };
+
+        axios.post("/api/inpatient-procedures/", payload)
+            .then(function() {
+                showAlert("Процедура добавлена", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось добавить процедуру"));
+            });
+    }
+
+    function confirmExecution(id) {
+        clearAlert();
+
+        axios.post(`/api/prescription-executions/${id}/confirm/`)
+            .then(function() {
+                showAlert("Выполнение подтверждено", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось подтвердить выполнение"));
+            });
+    }
+
+    function cancelExecution(id) {
+        clearAlert();
+
+        axios.post(`/api/prescription-executions/${id}/cancel/`)
+            .then(function() {
+                showAlert("Выполнение отменено", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось отменить выполнение"));
+            });
+    }
+
+    function deleteExecution(id) {
+        clearAlert();
+
+        if (!confirm("Удалить черновик выполнения?")) {
+            return;
+        }
+
+        axios.delete(`/api/prescription-executions/${id}/`)
+            .then(function() {
+                showAlert("Черновик выполнения удалён", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось удалить выполнение"));
+            });
+    }
+
+    function confirmProcedure(id) {
+        clearAlert();
+
+        axios.post(`/api/inpatient-procedures/${id}/confirm/`)
+            .then(function() {
+                showAlert("Процедура подтверждена", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось подтвердить процедуру"));
+            });
+    }
+
+    function cancelProcedure(id) {
+        clearAlert();
+
+        axios.post(`/api/inpatient-procedures/${id}/cancel/`)
+            .then(function() {
+                showAlert("Процедура отменена", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось отменить процедуру"));
+            });
+    }
+
+    function deleteProcedure(id) {
+        clearAlert();
+
+        if (!confirm("Удалить черновик процедуры?")) {
+            return;
+        }
+
+        axios.delete(`/api/inpatient-procedures/${id}/`)
+            .then(function() {
+                showAlert("Черновик процедуры удалён", "success");
+                loadDailySheet();
+            })
+            .catch(function(error) {
+                console.error(error);
+                showAlert(getErrorMessage(error, "Не удалось удалить процедуру"));
+            });
+    }
+
+    function getErrorMessage(error, fallbackText) {
+        if (error.response && error.response.data) {
+            if (typeof error.response.data.detail === "string") {
+                return error.response.data.detail;
+            }
+
+            if (typeof error.response.data === "string") {
+                return error.response.data;
+            }
+
+            try {
+                return JSON.stringify(error.response.data);
+            } catch (e) {}
+        }
+
+        return fallbackText;
+    }
+
+    function getCurrentDatetimeLocal() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+        const hours = String(now.getHours()).padStart(2, "0");
+        const minutes = String(now.getMinutes()).padStart(2, "0");
+
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+
+    function convertDatetimeLocalToIso(value) {
+        if (!value) return value;
+        const date = new Date(value);
+        return date.toISOString();
+    }
+
+    function formatDateTime(value) {
+        if (!value) return "-";
+
+        try {
+            const date = new Date(value);
+            if (isNaN(date.getTime())) return value;
+            return date.toLocaleString("ru-RU");
+        } catch (e) {
+            return value;
+        }
+    }
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return "";
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+
+    function getCookie(name) {
+    let cookieValue = null;
+
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+
+            if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+
+    return cookieValue;
+}
+
+function getPrescriptionCardClass(prescription) {
+    const remaining = Number(prescription.remaining_today_count ?? 0);
+    const executions = prescription.executions || [];
+
+    const hasCancelled = executions.some(e => e.status === "cancelled");
+    const hasConfirmed = executions.some(e => e.status === "confirmed");
+
+    if (hasCancelled) {
+        return "border-danger bg-danger-subtle";
+    }
+
+    if (remaining > 0) {
+        return "border-warning bg-warning-subtle";
+    }
+
+    if (remaining === 0 && hasConfirmed) {
+        return "border-success bg-success-subtle";
+    }
+
+    return "border-secondary-subtle";
+}
+
+function renderPrescriptionSummaryStatus(prescription) {
+    const remaining = Number(prescription.remaining_today_count ?? 0);
+    const confirmed = Number(prescription.confirmed_today_count ?? 0);
+    const executions = prescription.executions || [];
+
+    const hasCancelled = executions.some(e => e.status === "cancelled");
+
+    if (hasCancelled) {
+        return `
+            <span class="badge bg-danger">
+                Есть отменённые выполнения
+            </span>
+        `;
+    }
+
+    if (remaining > 0) {
+        return `
+            <span class="badge bg-warning text-dark">
+                Осталось выполнить сегодня: ${escapeHtml(String(remaining))}
+            </span>
+        `;
+    }
+
+    if (remaining === 0 && confirmed > 0) {
+        return `
+            <span class="badge bg-success">
+                Назначение на сегодня выполнено
+            </span>
+        `;
+    }
+
+    return `
+        <span class="badge bg-secondary">
+            Нет выполнений
+        </span>
+    `;
+}
+
+function renderPrescriptionSummaryStatus(prescription) {
+    const remaining = Number(prescription.remaining_today_count ?? 0);
+    const confirmed = Number(prescription.confirmed_today_count ?? 0);
+    const executions = prescription.executions || [];
+
+    const hasCancelled = executions.some(e => e.status === "cancelled");
+
+    if (hasCancelled) {
+        return `
+            <span class="badge bg-danger">
+                Есть отменённые выполнения
+            </span>
+        `;
+    }
+
+    if (remaining > 0) {
+        return `
+            <span class="badge bg-warning text-dark">
+                Осталось выполнить сегодня: ${escapeHtml(String(remaining))}
+            </span>
+        `;
+    }
+
+    if (remaining === 0 && confirmed > 0) {
+        return `
+            <span class="badge bg-success">
+                Назначение на сегодня выполнено
+            </span>
+        `;
+    }
+
+    return `
+        <span class="badge bg-secondary">
+            Нет выполнений
+        </span>
+    `;
+}
+</script>
+{% endblock %} -->
