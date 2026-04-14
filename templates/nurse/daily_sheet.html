@@ -342,7 +342,12 @@
                         <div class="row g-3 mb-3">
                             <div class="col-md-3">
                                 <div class="text-muted small">Лекарство</div>
-                                <div class="fw-semibold">${escapeHtml(prescription.medication_name || "-")}</div>
+                                <div class="fw-semibold">
+                                    ${escapeHtml(prescription.medication_name || "-")}
+                                </div>
+                                <div class="small text-muted">
+                                    Остаток: ${escapeHtml(String(prescription.stock_qty ?? 0))}
+                                </div>
                             </div>
                             <div class="col-md-2">
                                 <div class="text-muted small">Дозировка</div>
@@ -385,11 +390,12 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <h6 class="mb-0">Добавить выполнение</h6>
-                                    <button class="btn btn-success btn-sm"
-                                            ${Number(prescription.remaining_today_count ?? 0) <= 0 ? "disabled" : ""}
+                                        <button class="btn btn-success btn-sm"
+                                            ${Number(prescription.remaining_today_count ?? 0) <= 0 ||
+                                            Number(prescription.stock_qty ?? 0) <= 0 ? "disabled" : ""}
                                             onclick="quickExecution(${prescription.id}, ${prescription.remaining_today_count ?? 0})">
-                                        Выполнить сейчас
-                                    </button>
+                                            Выполнить сейчас
+                                        </button>
                                 </div>
 
                                 <div class="row g-2">

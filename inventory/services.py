@@ -25,6 +25,12 @@ def write_off_materials(service, qty=1, source="outpatient"):
         )
 
 
+def get_material_stock(material):
+    from .models import Stock
+    stock = Stock.objects.filter(material=material).first()
+    return stock.quantity if stock else 0
+
+
 def restore_materials(service, qty=1, source="outpatient_restore"):
     service_materials = ServiceMaterial.objects.filter(service=service)
 

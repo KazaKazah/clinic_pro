@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from inventory.services import get_material_stock
 
 from .models import (
     Ward,
@@ -67,6 +68,14 @@ class PrescriptionExecutionSerializer(serializers.ModelSerializer):
 
         if not prescription or not execution_time:
             return attrs
+        
+        if prescription:
+            stock = get_material_stock(prescription.medication)
+
+            if stock <= 0:
+                raise serializers.ValidationError(
+                    "Недостаточно лекарства на складе."
+                )
 
         if instance and instance.status == "confirmed":
             protected_changed = (
@@ -80,6 +89,7 @@ class PrescriptionExecutionSerializer(serializers.ModelSerializer):
                     "Нельзя редактировать подтверждённое выполнение. Сначала отмените запись."
                 )
 
+        
         same_day_qs = PrescriptionExecution.objects.filter(
             prescription=prescription,
             execution_time__date=execution_time.date(),
