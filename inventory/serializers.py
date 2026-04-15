@@ -1,12 +1,33 @@
-from inventory.services import get_material_stock
-from outpatient import serializers
+from rest_framework import serializers
+from .models import Material, Medication, StockMovement
 
-class DailySheetPrescriptionSerializer(serializers.ModelSerializer):
-    medication_name = serializers.CharField(source="medication.name", read_only=True)
-    stock_qty = serializers.SerializerMethodField()
 
-    ...
+class MaterialSerializer(serializers.ModelSerializer):
+    is_low_stock = serializers.SerializerMethodField()
 
-    def get_stock_qty(self, obj):
-        return get_material_stock(obj.medication)
-    
+    class Meta:
+        model = Material
+        fields = "__all__"
+
+    def get_is_low_stock(self, obj):
+        return obj.stock_qty <= obj.min_stock
+
+
+class MedicationSerializer(serializers.ModelSerializer):
+    is_low_stock = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Medication
+        fields = "__all__"
+
+    def get_is_low_stock(self, obj):
+        return obj.stock_qty <= obj.min_stock
+
+
+class StockMovementSerializer(serializers.ModelSerializer):
+    movement_type_display = serializers.CharField(source="get_movement_type_display", read_only=True)
+    item_type_display = serializers.CharField(source="get_item_type_display", read_only=True)
+
+    class Meta:
+        model = StockMovement
+        fields = "__all__"

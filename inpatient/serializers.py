@@ -72,10 +72,12 @@ class PrescriptionExecutionSerializer(serializers.ModelSerializer):
         if prescription:
             stock = get_material_stock(prescription.medication)
 
-            if stock <= 0:
-                raise serializers.ValidationError(
-                    "Недостаточно лекарства на складе."
-                )
+        qty = attrs.get("qty") or getattr(instance, "qty", 1)
+
+        if prescription.medication.stock_qty < qty:
+            raise serializers.ValidationError(
+                "Недостаточно лекарства на складе."
+            )
 
         if instance and instance.status == "confirmed":
             protected_changed = (
@@ -148,6 +150,9 @@ class DailySheetPrescriptionSerializer(serializers.ModelSerializer):
     executions = PrescriptionExecutionSerializer(many=True, read_only=True)
     confirmed_today_count = serializers.SerializerMethodField()
     remaining_today_count = serializers.SerializerMethodField()
+    stock_qty = serializers.SerializerMethodField()
+    min_stock = serializers.SerializerMethodField()
+    is_low_stock = serializers.SerializerMethodField()
 
     class Meta:
         model = Prescription
@@ -163,7 +168,19 @@ class DailySheetPrescriptionSerializer(serializers.ModelSerializer):
             "executions",
             "confirmed_today_count",
             "remaining_today_count",
+            "stock_qty",
+            "min_stock",
+            "is_low_stock",
         ]
+
+    def get_stock_qty(self, obj):
+        return obj.medication.stock_qty
+
+    def get_min_stock(self, obj):
+        return obj.medication.min_stock
+
+    def get_is_low_stock(self, obj):
+        return obj.medication.stock_qty <= obj.medication.min_stock
 
     def get_confirmed_today_count(self, obj):
         return sum(1 for e in obj.executions.all() if e.status == "confirmed")

@@ -20,6 +20,11 @@ from .serializers import (
     DailySheetPrescriptionSerializer,
     DailySheetResponseSerializer,
 )
+from django.utils import timezone
+from decimal import Decimal
+
+from inventory.models import Medication
+from .models import PrescriptionExecution, InpatientProcedure
 
 
 class WardViewSet(viewsets.ModelViewSet):
@@ -85,6 +90,51 @@ class InpatientAdmissionViewSet(viewsets.ModelViewSet):
         }
 
         return Response(data)
+    
+    @action(detail=True, methods=["get"])
+    def finance(self, request, pk=None):
+        admission = self.get_object()
+
+        # 1. Дни
+        today = timezone.now().date()
+        start_date = admission.start_date
+        end_date = admission.end_date or today
+
+        days = (end_date - start_date).days + 1
+        day_price = admission.daily_price or Decimal("0")
+        days_total = days * day_price
+
+        # 2. Процедуры
+        procedures = InpatientProcedure.objects.filter(
+            admission=admission,
+            status="confirmed"
+        )
+
+        procedures_total = sum([p.total for p in procedures]) if procedures else 0
+
+        # 3. Лекарства
+        executions = PrescriptionExecution.objects.filter(
+            prescription__admission=admission,
+            status="confirmed"
+        ).select_related("prescription__medication")
+
+        medications_total = Decimal("0")
+
+        for e in executions:
+            price = e.prescription.medication.sale_price or Decimal("0")
+            medications_total += price * e.qty
+
+        # Итого
+        total = days_total + procedures_total + medications_total
+
+        return Response({
+            "days": days,
+            "day_price": day_price,
+            "days_total": days_total,
+            "procedures_total": procedures_total,
+            "medications_total": medications_total,
+            "total": total,
+        })
 
 
 class PrescriptionViewSet(viewsets.ModelViewSet):
