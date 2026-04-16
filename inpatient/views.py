@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.db.models import Prefetch
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -20,11 +23,7 @@ from .serializers import (
     DailySheetPrescriptionSerializer,
     DailySheetResponseSerializer,
 )
-from django.utils import timezone
-from decimal import Decimal
 
-from inventory.models import Medication
-from .models import PrescriptionExecution, InpatientProcedure
 
 
 class WardViewSet(viewsets.ModelViewSet):
@@ -93,48 +92,47 @@ class InpatientAdmissionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=["get"])
     def finance(self, request, pk=None):
-        admission = self.get_object()
+            admission = self.get_object()
 
-        # 1. Дни
-        today = timezone.now().date()
-        start_date = admission.start_date
-        end_date = admission.end_date or today
+            start_dt = admission.admission_date
+            end_dt = admission.discharge_date or timezone.now()
 
-        days = (end_date - start_date).days + 1
-        day_price = admission.daily_price or Decimal("0")
-        days_total = days * day_price
+            start_date = start_dt.date()
+            end_date = end_dt.date()
 
-        # 2. Процедуры
-        procedures = InpatientProcedure.objects.filter(
-            admission=admission,
-            status="confirmed"
-        )
+            days = (end_date - start_date).days + 1
+            if days < 1:
+                days = 1
 
-        procedures_total = sum([p.total for p in procedures]) if procedures else 0
+            day_price = admission.ward.daily_price if admission.ward else Decimal("0.00")
+            days_total = Decimal(days) * day_price
 
-        # 3. Лекарства
-        executions = PrescriptionExecution.objects.filter(
-            prescription__admission=admission,
-            status="confirmed"
-        ).select_related("prescription__medication")
+            procedures = InpatientProcedure.objects.filter(
+                admission=admission,
+                status="confirmed"
+            )
+            procedures_total = sum((p.total for p in procedures), Decimal("0.00"))
 
-        medications_total = Decimal("0")
+            executions = PrescriptionExecution.objects.filter(
+                prescription__admission=admission,
+                status="confirmed"
+            ).select_related("prescription__medication")
 
-        for e in executions:
-            price = e.prescription.medication.sale_price or Decimal("0")
-            medications_total += price * e.qty
+            medications_total = Decimal("0.00")
+            for e in executions:
+                price = e.prescription.medication.sale_price or Decimal("0.00")
+                medications_total += price * e.qty
 
-        # Итого
-        total = days_total + procedures_total + medications_total
+            total = days_total + procedures_total + medications_total
 
-        return Response({
-            "days": days,
-            "day_price": day_price,
-            "days_total": days_total,
-            "procedures_total": procedures_total,
-            "medications_total": medications_total,
-            "total": total,
-        })
+            return Response({
+                "days": days,
+                "day_price": str(day_price),
+                "days_total": str(days_total),
+                "procedures_total": str(procedures_total),
+                "medications_total": str(medications_total),
+                "total": str(total),
+    })
 
 
 class PrescriptionViewSet(viewsets.ModelViewSet):
