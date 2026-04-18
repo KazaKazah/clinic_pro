@@ -1,6 +1,21 @@
 from django.contrib import admin
 
-from .models import Appointment, Doctor, MedicalRecord, PatientVisit, Specialty
+from .models import (
+    Appointment,
+    Doctor,
+    MedicalService,
+    Patient,
+    PatientVisit,
+    Payment,
+    Specialty,
+)
+
+
+@admin.register(Patient)
+class PatientAdmin(admin.ModelAdmin):
+    list_display = ("full_name", "iin", "birth_date", "phone", "created_at")
+    search_fields = ("last_name", "first_name", "middle_name", "iin", "phone")
+    list_filter = ("gender", "created_at")
 
 
 @admin.register(Specialty)
@@ -14,6 +29,13 @@ class SpecialtyAdmin(admin.ModelAdmin):
 class DoctorAdmin(admin.ModelAdmin):
     list_display = ("full_name", "specialty", "room_number", "is_active")
     search_fields = ("full_name", "phone")
+    list_filter = ("specialty", "is_active")
+
+
+@admin.register(MedicalService)
+class MedicalServiceAdmin(admin.ModelAdmin):
+    list_display = ("name", "specialty", "price", "is_active")
+    search_fields = ("name",)
     list_filter = ("specialty", "is_active")
 
 
@@ -31,8 +53,7 @@ class AppointmentAdmin(admin.ModelAdmin):
     list_filter = ("status", "appointment_date", "doctor__specialty")
 
 
-@admin.register(MedicalRecord)
-class MedicalRecordAdmin(admin.ModelAdmin):
-    list_display = ("appointment", "outcome", "created_by", "created_at")
-    search_fields = ("appointment__patient__last_name", "appointment__patient__iin", "diagnosis")
-    list_filter = ("outcome", "created_at")
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ("appointment", "amount", "status", "method", "paid_at")
+    list_filter = ("status", "method", "created_at")

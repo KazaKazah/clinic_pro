@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base/base.html" %}
 
 {% block title %}Карточка приема{% endblock %}
 
@@ -8,12 +8,7 @@
         <h1 class="h3 mb-1">Карточка приема</h1>
         <div class="text-muted">{{ appointment.appointment_date|date:"d.m.Y" }} · {{ appointment.appointment_time|time:"H:i" }}</div>
     </div>
-    <div class="d-flex gap-2">
-        <a class="btn btn-primary" href="{% url 'appointment_consultation_page' appointment.id %}">
-            {% if appointment.medical_record %}Открыть медицинскую запись{% else %}Начать прием{% endif %}
-        </a>
-        <a class="btn btn-outline-primary" href="{% url 'dashboard_page' %}">На панель</a>
-    </div>
+    <a class="btn btn-outline-primary" href="{% url 'reception:dashboard' %}">На панель</a>
 </div>
 
 <div class="row g-3">
@@ -76,24 +71,5 @@
             </div>
         </div>
     </div>
-    {% if appointment.medical_record %}
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h2 class="h5">Медицинская запись</h2>
-                    <dl class="row mb-0">
-                        <dt class="col-sm-3">Жалобы</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.complaints }}</dd>
-                        <dt class="col-sm-3">Диагноз</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.diagnosis }}</dd>
-                        <dt class="col-sm-3">Рекомендации</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.recommendations|default:"Не указаны" }}</dd>
-                        <dt class="col-sm-3">Итог</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.get_outcome_display }}</dd>
-                    </dl>
-                </div>
-            </div>
-        </div>
-    {% endif %}
 </div>
 {% endblock %}

@@ -1,7 +1,59 @@
 from django import forms
+from django.db.models import Q
 
-from billing.models import MedicalService, Payment
-from .models import Appointment, Doctor, MedicalRecord, PatientVisit
+from .models import Appointment, Doctor, MedicalService, Patient, PatientVisit, Payment
+
+
+class PatientSearchForm(forms.Form):
+    query = forms.CharField(
+        label="ИИН, ФИО или телефон",
+        max_length=200,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Например: 990101300000 или Иванов",
+            }
+        ),
+    )
+
+    def search(self):
+        query = self.cleaned_data["query"].strip()
+        return Patient.objects.filter(
+            Q(iin__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(middle_name__icontains=query)
+            | Q(phone__icontains=query)
+        )
+
+
+class PatientForm(forms.ModelForm):
+    class Meta:
+        model = Patient
+        fields = [
+            "last_name",
+            "first_name",
+            "middle_name",
+            "iin",
+            "birth_date",
+            "gender",
+            "phone",
+            "address",
+            "document_number",
+            "emergency_contact",
+            "note",
+        ]
+        widgets = {
+            "birth_date": forms.DateInput(attrs={"type": "date"}),
+            "address": forms.Textarea(attrs={"rows": 2}),
+            "note": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
+            field.widget.attrs["class"] = css_class
 
 
 class CreateVisitAppointmentForm(forms.Form):
@@ -20,8 +72,14 @@ class CreateVisitAppointmentForm(forms.Form):
         queryset=Doctor.objects.none(),
         empty_label="Выберите врача",
     )
-    appointment_date = forms.DateField(label="Дата приема", widget=forms.DateInput(attrs={"type": "date"}))
-    appointment_time = forms.TimeField(label="Время приема", widget=forms.TimeInput(attrs={"type": "time"}))
+    appointment_date = forms.DateField(
+        label="Дата приема",
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    appointment_time = forms.TimeField(
+        label="Время приема",
+        widget=forms.TimeInput(attrs={"type": "time"}),
+    )
     payment_status = forms.ChoiceField(label="Статус оплаты", choices=Payment.STATUS_CHOICES)
     payment_method = forms.ChoiceField(
         label="Способ оплаты",
@@ -52,15 +110,14 @@ class CreateVisitAppointmentForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        service = cleaned_data.get("service")
-        doctor = cleaned_data.get("doctor")
         payment_status = cleaned_data.get("payment_status")
         payment_method = cleaned_data.get("payment_method")
-
-        if service and doctor and service.specialty_id != doctor.specialty_id:
-            self.add_error("doctor", "Выбранный врач не относится к специальности выбранной услуги.")
+        service = cleaned_data.get("service")
+        doctor = cleaned_data.get("doctor")
         if payment_status in {"paid", "partial", "free"} and not payment_method:
             self.add_error("payment_method", "Укажите способ оплаты.")
+        if service and doctor and service.specialty_id != doctor.specialty_id:
+            self.add_error("doctor", "Выбранный врач не относится к специальности выбранной услуги.")
         return cleaned_data
 
     def save(self, patient, registrar):
@@ -87,7 +144,7 @@ class CreateVisitAppointmentForm(forms.Form):
             service=service,
             appointment_date=self.cleaned_data["appointment_date"],
             appointment_time=self.cleaned_data["appointment_time"],
-            status="waiting" if payment_status in {"paid", "partial", "free"} else "scheduled",
+            status="waiting" if payment_status in {"paid", "free", "partial"} else "scheduled",
             registrar_comment=self.cleaned_data["registrar_comment"],
         )
         Payment.objects.create(
@@ -99,29 +156,8 @@ class CreateVisitAppointmentForm(forms.Form):
         return appointment
 
 
-class MedicalRecordForm(forms.ModelForm):
+class AppointmentDoctorForm(forms.ModelForm):
     class Meta:
-        model = MedicalRecord
-        fields = [
-            "complaints",
-            "anamnesis",
-            "objective_status",
-            "diagnosis",
-            "treatment_plan",
-            "recommendations",
-            "outcome",
-        ]
-        widgets = {
-            "complaints": forms.Textarea(attrs={"rows": 3}),
-            "anamnesis": forms.Textarea(attrs={"rows": 3}),
-            "objective_status": forms.Textarea(attrs={"rows": 3}),
-            "diagnosis": forms.Textarea(attrs={"rows": 3}),
-            "treatment_plan": forms.Textarea(attrs={"rows": 3}),
-            "recommendations": forms.Textarea(attrs={"rows": 3}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
-            field.widget.attrs["class"] = css_class
+        model = Appointment
+        fields = ["doctor"]
+        widgets = {"doctor": forms.Select(attrs={"class": "form-select"})}

@@ -1,0 +1,26 @@
+{% extends "base/base.html" %}
+
+{% block title %}Регистрация пациента{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Регистрация пациента</h1>
+
+<form class="card card-body shadow-sm" method="post">
+    {% csrf_token %}
+    <div class="row g-3">
+        {% for field in form %}
+            <div class="col-md-6">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    <div class="d-flex gap-2 mt-4">
+        <button class="btn btn-primary" type="submit">Сохранить и создать обращение</button>
+        <a class="btn btn-outline-secondary" href="{% url 'reception:patient_search' %}">Назад</a>
+    </div>
+</form>
+{% endblock %}

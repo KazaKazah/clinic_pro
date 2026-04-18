@@ -4,8 +4,8 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
 from patients.models import Patient
-from .forms import CreateVisitAppointmentForm
-from .models import Appointment, Doctor
+from .forms import CreateVisitAppointmentForm, MedicalRecordForm
+from .models import Appointment, Doctor, MedicalRecord
 
 
 @login_required
@@ -40,3 +40,48 @@ def doctor_queue_page(request):
             .order_by("appointment_date", "appointment_time")
         )
     return render(request, "outpatient/doctor_queue.html", {"doctor": doctor, "appointments": appointments})
+
+
+@login_required
+@transaction.atomic
+def appointment_consultation_page(request, appointment_id):
+    appointment = get_object_or_404(
+        Appointment.objects.select_related("patient", "visit", "doctor", "service", "payment"),
+        id=appointment_id,
+    )
+    medical_record = MedicalRecord.objects.filter(appointment=appointment).first()
+    form = MedicalRecordForm(request.POST or None, instance=medical_record)
+
+    if request.method == "POST" and form.is_valid():
+        record = form.save(commit=False)
+        record.appointment = appointment
+        record.created_by = request.user
+        record.save()
+
+        appointment.status = "completed"
+        appointment.save(update_fields=["status", "updated_at"])
+
+        outcome_to_visit_status = {
+            "consultation_completed": "completed",
+            "need_examination": "need_examination",
+            "hospitalization_required": "hospitalization_required",
+            "repeat_visit": "repeat_visit_required",
+            "referral": "referred",
+        }
+        appointment.visit.status = outcome_to_visit_status[record.outcome]
+        appointment.visit.save(update_fields=["status", "updated_at"])
+
+        messages.success(request, "Прием завершен, медицинская запись сохранена.")
+        return redirect("appointment_detail_page", appointment_id=appointment.id)
+
+    if appointment.status == "waiting":
+        appointment.status = "in_progress"
+        appointment.visit.status = "in_progress"
+        appointment.save(update_fields=["status", "updated_at"])
+        appointment.visit.save(update_fields=["status", "updated_at"])
+
+    return render(
+        request,
+        "outpatient/consultation_form.html",
+        {"appointment": appointment, "form": form, "medical_record": medical_record},
+    )

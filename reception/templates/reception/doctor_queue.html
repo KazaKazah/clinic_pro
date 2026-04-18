@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base/base.html" %}
 
 {% block title %}Очередь врача{% endblock %}
 
@@ -22,7 +22,6 @@
                         <th>Пациент</th>
                         <th>Причина</th>
                         <th>Оплата</th>
-                        <th>Статус</th>
                         <th></th>
                     </tr>
                     </thead>
@@ -34,15 +33,13 @@
                             <td>{{ appointment.patient.full_name }}</td>
                             <td>{{ appointment.visit.reason|truncatechars:80 }}</td>
                             <td>{{ appointment.payment.get_status_display }}</td>
-                            <td>{{ appointment.get_status_display }}</td>
                             <td>
-                                <a class="btn btn-primary btn-sm" href="{% url 'appointment_consultation_page' appointment.id %}">Начать прием</a>
-                                <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_detail_page' appointment.id %}">Карточка</a>
+                                <a class="btn btn-outline-primary btn-sm" href="{% url 'reception:appointment_detail' appointment.id %}">Открыть карточку</a>
                             </td>
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="7" class="text-muted">Пациентов в очереди пока нет.</td>
+                            <td colspan="6" class="text-muted">Пациентов в очереди пока нет.</td>
                         </tr>
                     {% endfor %}
                     </tbody>

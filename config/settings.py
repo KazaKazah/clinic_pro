@@ -3,7 +3,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-7_300b48=_=2o-&)05c9#whp+3!y4i1zk(yn2=kyjgg-up@_0i"
+SECRET_KEY = "dev-only-clinic-secret-key"
 DEBUG = True
 ALLOWED_HOSTS = []
 
@@ -14,7 +14,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
     "rest_framework",
+
     "users",
     "patients",
     "outpatient",
@@ -45,7 +47,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
             ],
         },
-    }
+    },
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
@@ -72,7 +74,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-AUTH_USER_MODEL = "users.User"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard_page"
 LOGOUT_REDIRECT_URL = "login"
+
+
+AUTH_USER_MODEL = "users.User"
