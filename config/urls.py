@@ -3,9 +3,15 @@ from django.urls import path, include
 from inpatient.views_pages import nurse_daily_sheet_page
 from billing.views import ServiceViewSet
 from inventory.views_pages import stock_dashboard_page
+from config.views import dashboard_page
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    #
+    path("", dashboard_page, name="dashboard_page"),
+    path("", include("patients.urls_pages")),
+    path("", include("outpatient.urls_pages")),
+    path("", include("inpatient.urls_pages")),
 
     #
     path('api/', include('patients.urls')),
