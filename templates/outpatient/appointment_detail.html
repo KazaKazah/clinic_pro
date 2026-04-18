@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Карточка приема{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Карточка приема</h1>
+        <div class="text-muted">{{ appointment.appointment_date|date:"d.m.Y" }} · {{ appointment.appointment_time|time:"H:i" }}</div>
+    </div>
+    <a class="btn btn-outline-primary" href="{% url 'dashboard_page' %}">На панель</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5">Пациент</h2>
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">ФИО</dt>
+                    <dd class="col-sm-8">{{ appointment.patient.full_name }}</dd>
+                    <dt class="col-sm-4">ИИН</dt>
+                    <dd class="col-sm-8">{{ appointment.patient.iin }}</dd>
+                    <dt class="col-sm-4">Телефон</dt>
+                    <dd class="col-sm-8">{{ appointment.patient.phone }}</dd>
+                    <dt class="col-sm-4">Адрес</dt>
+                    <dd class="col-sm-8">{{ appointment.patient.address|default:"Не указан" }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5">Направление</h2>
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Тип</dt>
+                    <dd class="col-sm-8">{{ appointment.visit.get_visit_type_display }}</dd>
+                    <dt class="col-sm-4">Причина</dt>
+                    <dd class="col-sm-8">{{ appointment.visit.reason }}</dd>
+                    <dt class="col-sm-4">Врач</dt>
+                    <dd class="col-sm-8">{{ appointment.doctor.full_name }}</dd>
+                    <dt class="col-sm-4">Кабинет</dt>
+                    <dd class="col-sm-8">{{ appointment.doctor.room_number|default:"Не указан" }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Услуга и оплата</h2>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="text-muted">Услуга</div>
+                        <div>{{ appointment.service.name }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted">Сумма</div>
+                        <div>{{ appointment.payment.amount }} тг</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted">Оплата</div>
+                        <div>{{ appointment.payment.get_status_display }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted">Статус приема</div>
+                        <div>{{ appointment.get_status_display }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

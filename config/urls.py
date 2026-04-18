@@ -1,27 +1,15 @@
 from django.contrib import admin
-from django.urls import path, include
-from inpatient.views_pages import nurse_daily_sheet_page
-from billing.views import ServiceViewSet
-from inventory.views_pages import stock_dashboard_page
+from django.contrib.auth import views as auth_views
+from django.urls import include, path
+
 from config.views import dashboard_page
 
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    #
+    path("admin/", admin.site.urls),
+    path("login/", auth_views.LoginView.as_view(template_name="login.html"), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("", dashboard_page, name="dashboard_page"),
     path("", include("patients.urls_pages")),
     path("", include("outpatient.urls_pages")),
-    path("", include("inpatient.urls_pages")),
-
-    #
-    path('api/', include('patients.urls')),
-    path('api/', include('outpatient.urls')),
-    path('api/', include('inpatient.urls')),
-    path("api/", include("inventory.urls")),
-    path('api/', include('billing.urls')),
-
-     #
-    path('daily-sheet/', nurse_daily_sheet_page, name='daily_sheet_page'),  
-    path("stock/", stock_dashboard_page, name="stock_dashboard_page"), 
-    
 ]

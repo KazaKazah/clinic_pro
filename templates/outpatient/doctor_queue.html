@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Очередь врача{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Очередь врача</h1>
+
+{% if not doctor %}
+    <div class="alert alert-warning">
+        Для текущего пользователя не найден активный профиль врача. Создайте врача в разделе администрирования и привяжите его к этому пользователю.
+    </div>
+{% else %}
+    <div class="mb-3 text-muted">{{ doctor.full_name }} · {{ doctor.specialty.name }} · кабинет {{ doctor.room_number|default:"не указан" }}</div>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Время</th>
+                        <th>Пациент</th>
+                        <th>Причина</th>
+                        <th>Оплата</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for appointment in appointments %}
+                        <tr>
+                            <td>{{ appointment.appointment_date|date:"d.m.Y" }}</td>
+                            <td>{{ appointment.appointment_time|time:"H:i" }}</td>
+                            <td>{{ appointment.patient.full_name }}</td>
+                            <td>{{ appointment.visit.reason|truncatechars:80 }}</td>
+                            <td>{{ appointment.payment.get_status_display }}</td>
+                            <td>
+                                <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_detail_page' appointment.id %}">Открыть карточку</a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-muted">Пациентов в очереди пока нет.</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
