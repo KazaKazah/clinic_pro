@@ -21,6 +21,14 @@
                         <th>Время</th>
                         <th>Пациент</th>
                         <th>Причина</th>
+                        <td>
+                            {% if appointment.created_from_referral %}
+                                От {{ appointment.created_from_referral.source_appointment.doctor.full_name }}
+                            {% else %}
+                                Регистратура
+                            {% endif %}
+                        </td>
+                        <th>Источник</th>
                         <th>Оплата</th>
                         <th>Статус</th>
                         <th></th>
@@ -42,7 +50,7 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="7" class="text-muted">Пациентов в очереди пока нет.</td>
+                            <td colspan="8" class="text-muted">Пациентов в очереди пока нет.</td>
                         </tr>
                     {% endfor %}
                     </tbody>

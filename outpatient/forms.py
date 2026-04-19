@@ -3,7 +3,9 @@ from dataclasses import field
 from django import forms
 
 from billing.models import MedicalService, Payment
-from .models import Appointment, Doctor, MedicalRecord, PatientVisit
+from .models import Appointment, Doctor, MedicalRecord, PatientVisit, SpecialistReferral, Specialty
+
+
 
 
 
@@ -152,4 +154,115 @@ class MedicalRecordForm(forms.ModelForm):
         for field in self.fields.values():
             css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
             field.widget.attrs["class"] = css_class
+
+
+class SpecialistReferralForm(forms.Form):
+    target_specialty = forms.ModelChoiceField(
+        label="Специальность",
+        queryset=Specialty.objects.none(),
+        empty_label="Выберите специальность",
+        required=False,
+    )
+    target_doctor = forms.ModelChoiceField(
+        label="Врач",
+        queryset=Doctor.objects.none(),
+        empty_label="Выберите врача",
+        required=False,
+    )
+    target_service = forms.ModelChoiceField(
+        label="Услуга",
+        queryset=MedicalService.objects.none(),
+        empty_label="Выберите услугу",
+        required=False,
+    )
+    appointment_date = forms.DateField(
+        label="Дата приема",
+        widget=forms.DateInput(attrs={"type": "date"}),
+        required=False,
+    )
+    appointment_time = forms.TimeField(
+        label="Время приема",
+        widget=forms.TimeInput(attrs={"type": "time"}),
+        required=False,
+    )
+    reason = forms.CharField(
+        label="Причина направления",
+        widget=forms.Textarea(attrs={"rows": 3}),
+        required=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields["target_specialty"].queryset = Specialty.objects.filter(is_active=True).order_by("name")
+        self.fields["target_doctor"].queryset = (
+            Doctor.objects.filter(is_active=True, specialty__is_active=True)
+            .select_related("specialty")
+            .order_by("specialty__name", "full_name")
+        )
+        self.fields["target_service"].queryset = (
+            MedicalService.objects.filter(is_active=True, specialty__is_active=True)
+            .select_related("specialty")
+            .order_by("specialty__name", "name")
+        )
+
+        for field in self.fields.values():
+            css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
+            field.widget.attrs["class"] = css_class
+
+    def clean(self):
+        cleaned_data = super().clean()
+        target_specialty = cleaned_data.get("target_specialty")
+        target_doctor = cleaned_data.get("target_doctor")
+        target_service = cleaned_data.get("target_service")
+        appointment_date = cleaned_data.get("appointment_date")
+        appointment_time = cleaned_data.get("appointment_time")
+        reason = cleaned_data.get("reason")
+
+        has_any_referral_data = any([
+            target_specialty,
+            target_doctor,
+            target_service,
+            appointment_date,
+            appointment_time,
+            reason,
+        ])
+
+        if not has_any_referral_data:
+            return cleaned_data
+
+        required_fields = {
+            "target_specialty": target_specialty,
+            "target_doctor": target_doctor,
+            "target_service": target_service,
+            "appointment_date": appointment_date,
+            "appointment_time": appointment_time,
+            "reason": reason,
+        }
+
+        for field_name, value in required_fields.items():
+            if not value:
+                self.add_error(field_name, "Заполните поле для создания направления.")
+
+        if target_specialty and target_doctor and target_doctor.specialty_id != target_specialty.id:
+            self.add_error("target_doctor", "Врач не относится к выбранной специальности.")
+
+        if target_specialty and target_service and target_service.specialty_id != target_specialty.id:
+            self.add_error("target_service", "Услуга не относится к выбранной специальности.")
+
+        return cleaned_data
+
+    @property
+    def has_referral(self):
+        if not hasattr(self, "cleaned_data"):
+            return False
+        return any([
+            self.cleaned_data.get("target_specialty"),
+            self.cleaned_data.get("target_doctor"),
+            self.cleaned_data.get("target_service"),
+            self.cleaned_data.get("appointment_date"),
+            self.cleaned_data.get("appointment_time"),
+            self.cleaned_data.get("reason"),
+        ])
+
 

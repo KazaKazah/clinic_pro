@@ -2,10 +2,13 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
-
+from django.utils import timezone
+from billing.models import Payment
 from patients.models import Patient
-from .forms import CreateVisitAppointmentForm, MedicalRecordForm
-from .models import Appointment, Doctor, MedicalRecord
+from .forms import CreateVisitAppointmentForm, MedicalRecordForm, SpecialistReferralForm
+from .models import Appointment, Doctor, MedicalRecord, PatientVisit, SpecialistReferral
+
+
 
 
 @login_required
@@ -36,7 +39,16 @@ def doctor_queue_page(request):
     if doctor:
         appointments = (
             Appointment.objects.filter(doctor=doctor, status__in=["waiting", "in_progress"])
-            .select_related("patient", "visit", "service", "payment")
+            .select_related(
+                "patient",
+                "visit",
+                "doctor",
+                "service",
+                "payment",
+                "created_from_referral",
+                "created_from_referral__source_appointment",
+                "created_from_referral__source_appointment__doctor",
+            )
             .order_by("appointment_date", "appointment_time")
         )
     return render(request, "outpatient/doctor_queue.html", {"doctor": doctor, "appointments": appointments})
@@ -50,29 +62,81 @@ def appointment_consultation_page(request, appointment_id):
         id=appointment_id,
     )
     medical_record = MedicalRecord.objects.filter(appointment=appointment).first()
-    form = MedicalRecordForm(request.POST or None, instance=medical_record)
 
-    if request.method == "POST" and form.is_valid():
-        record = form.save(commit=False)
-        record.appointment = appointment
-        record.created_by = request.user
-        record.save()
+    record_form = MedicalRecordForm(request.POST or None, instance=medical_record, prefix="record")
+    referral_form = SpecialistReferralForm(request.POST or None, prefix="referral")
 
-        appointment.status = "completed"
-        appointment.save(update_fields=["status", "updated_at"])
+    if request.method == "POST":
+        if record_form.is_valid() and referral_form.is_valid():
+            record = record_form.save(commit=False)
+            record.appointment = appointment
+            record.created_by = request.user
+            record.save()
 
-        outcome_to_visit_status = {
-            "consultation_completed": "completed",
-            "need_examination": "need_examination",
-            "hospitalization_required": "hospitalization_required",
-            "repeat_visit": "repeat_visit_required",
-            "referral": "referred",
-        }
-        appointment.visit.status = outcome_to_visit_status[record.outcome]
-        appointment.visit.save(update_fields=["status", "updated_at"])
+            appointment.status = "completed"
+            appointment.is_locked = True
+            appointment.performed_by = request.user
+            appointment.performed_at = timezone.now()
+            appointment.save(update_fields=["status", "is_locked", "performed_by", "performed_at", "updated_at"])
 
-        messages.success(request, "Прием завершен, медицинская запись сохранена.")
-        return redirect("appointment_detail_page", appointment_id=appointment.id)
+            outcome_to_visit_status = {
+                "consultation_completed": "completed",
+                "need_examination": "need_examination",
+                "hospitalization_required": "hospitalization_required",
+                "repeat_visit": "repeat_visit_required",
+                "referral": "referred",
+            }
+            appointment.visit.status = outcome_to_visit_status[record.outcome]
+            appointment.visit.save(update_fields=["status", "updated_at"])
+
+            if record.outcome == "referral" and referral_form.has_referral:
+                new_visit = PatientVisit.objects.create(
+                    patient=appointment.patient,
+                    visit_type="consultation",
+                    reason=referral_form.cleaned_data["reason"],
+                    status="sent_to_doctor",
+                    created_by=request.user,
+                )
+                target_service = referral_form.cleaned_data["target_service"]
+                target_doctor = referral_form.cleaned_data["target_doctor"]
+                referral_reason = referral_form.cleaned_data["reason"]
+
+                new_appointment = Appointment.objects.create(
+                    visit=new_visit,
+                    patient=appointment.patient,
+                    doctor=target_doctor,
+                    service=target_service,
+                    appointment_date=referral_form.cleaned_data["appointment_date"],
+                    appointment_time=referral_form.cleaned_data["appointment_time"],
+                    status="waiting",
+                    registrar_comment=(
+                        f"Направление от врача: {appointment.doctor.full_name}. "
+                        f"Исходный прием #{appointment.id}. "
+                        f"Причина: {referral_reason}"
+                    ),
+                )
+
+                Payment.objects.create(
+                    appointment=new_appointment,
+                    amount=target_service.price,
+                    status="not_paid",
+                )
+
+                SpecialistReferral.objects.create(
+                    source_appointment=appointment,
+                    patient=appointment.patient,
+                    target_specialty=referral_form.cleaned_data["target_specialty"],
+                    target_doctor=target_doctor,
+                    target_service=target_service,
+                    reason=referral_reason,
+                    appointment=new_appointment,
+                    status="appointment_created",
+                    created_by=request.user,
+                )
+
+
+            messages.success(request, "Прием завершен, медицинская запись сохранена.")
+            return redirect("appointment_detail_page", appointment_id=appointment.id)
 
     if appointment.status == "waiting":
         appointment.status = "in_progress"
@@ -83,5 +147,11 @@ def appointment_consultation_page(request, appointment_id):
     return render(
         request,
         "outpatient/consultation_form.html",
-        {"appointment": appointment, "form": form, "medical_record": medical_record},
+        {
+            "appointment": appointment,
+            "form": record_form,
+            "referral_form": referral_form,
+            "medical_record": medical_record,
+        },
     )
+

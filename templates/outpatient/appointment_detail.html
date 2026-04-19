@@ -6,7 +6,9 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
         <h1 class="h3 mb-1">Карточка приема</h1>
-        <div class="text-muted">{{ appointment.appointment_date|date:"d.m.Y" }} · {{ appointment.appointment_time|time:"H:i" }}</div>
+        <div class="text-muted">
+            {{ appointment.appointment_date|date:"d.m.Y" }} · {{ appointment.appointment_time|time:"H:i" }}
+        </div>
     </div>
     <div class="d-flex gap-2">
         <a class="btn btn-primary" href="{% url 'appointment_consultation_page' appointment.id %}">
@@ -16,90 +18,281 @@
     </div>
 </div>
 
+{% if appointment.created_from_referral %}
+    <div class="referral-banner mb-3">
+        <div>
+            <div class="referral-label">Пациент направлен от специалиста</div>
+            <div class="referral-title">
+                {{ appointment.created_from_referral.source_appointment.doctor.full_name }}
+            </div>
+            <div class="referral-text">
+                {{ appointment.created_from_referral.reason|safe }}
+            </div>
+        </div>
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_detail_page' appointment.created_from_referral.source_appointment.id %}">
+            Исходный прием #{{ appointment.created_from_referral.source_appointment.id }}
+        </a>
+    </div>
+{% endif %}
+
 <div class="row g-3">
     <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-body">
-                <h2 class="h5">Пациент</h2>
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">ФИО</dt>
-                    <dd class="col-sm-8">{{ appointment.patient.full_name }}</dd>
-                    <dt class="col-sm-4">ИИН</dt>
-                    <dd class="col-sm-8">{{ appointment.patient.iin }}</dd>
-                    <dt class="col-sm-4">Телефон</dt>
-                    <dd class="col-sm-8">{{ appointment.patient.phone }}</dd>
-                    <dt class="col-sm-4">Адрес</dt>
-                    <dd class="col-sm-8">{{ appointment.patient.address|default:"Не указан" }}</dd>
-                </dl>
+        <section class="info-card h-100">
+            <h2 class="h5 mb-3">Пациент</h2>
+
+            <div class="info-row">
+                <div class="info-label">ФИО</div>
+                <div class="info-value">{{ appointment.patient.full_name }}</div>
             </div>
-        </div>
+            <div class="info-row">
+                <div class="info-label">ИИН</div>
+                <div class="info-value">{{ appointment.patient.iin }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Телефон</div>
+                <div class="info-value">{{ appointment.patient.phone }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Адрес</div>
+                <div class="info-value">{{ appointment.patient.address|default:"Не указан" }}</div>
+            </div>
+        </section>
     </div>
+
     <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-body">
-                <h2 class="h5">Направление</h2>
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Тип</dt>
-                    <dd class="col-sm-8">{{ appointment.visit.get_visit_type_display }}</dd>
-                    <dt class="col-sm-4">Причина</dt>
-                    <dd class="col-sm-8">{{ appointment.visit.reason }}</dd>
-                    <dt class="col-sm-4">Врач</dt>
-                    <dd class="col-sm-8">{{ appointment.doctor.full_name }}</dd>
-                    <dt class="col-sm-4">Кабинет</dt>
-                    <dd class="col-sm-8">{{ appointment.doctor.room_number|default:"Не указан" }}</dd>
-                </dl>
+        <section class="info-card h-100">
+            <h2 class="h5 mb-3">Направление</h2>
+
+            <div class="info-row">
+                <div class="info-label">Тип обращения</div>
+                <div class="info-value">{{ appointment.visit.get_visit_type_display }}</div>
             </div>
-        </div>
+            <div class="info-row">
+                <div class="info-label">Причина обращения</div>
+                <div class="info-value rich-output">{{ appointment.visit.reason|safe }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Назначенный врач</div>
+                <div class="info-value">{{ appointment.doctor.full_name }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Кабинет</div>
+                <div class="info-value">{{ appointment.doctor.room_number|default:"Не указан" }}</div>
+            </div>
+
+            {% if appointment.created_from_referral %}
+                <hr>
+                <div class="info-row">
+                    <div class="info-label">Направлен от</div>
+                    <div class="info-value">{{ appointment.created_from_referral.source_appointment.doctor.full_name }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Причина направления</div>
+                    <div class="info-value rich-output">{{ appointment.created_from_referral.reason|safe }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Исходный прием</div>
+                    <div class="info-value">
+                        <a href="{% url 'appointment_detail_page' appointment.created_from_referral.source_appointment.id %}">
+                            Открыть прием #{{ appointment.created_from_referral.source_appointment.id }}
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </section>
     </div>
+
     <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h5">Услуга и оплата</h2>
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <div class="text-muted">Услуга</div>
-                        <div>{{ appointment.service.name }}</div>
+        <section class="info-card">
+            <h2 class="h5 mb-3">Услуга и оплата</h2>
+
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="metric-box">
+                        <div class="metric-label">Услуга</div>
+                        <div class="metric-value">{{ appointment.service.name }}</div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="text-muted">Сумма</div>
-                        <div>{{ appointment.payment.amount }} тг</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-box">
+                        <div class="metric-label">Сумма</div>
+                        <div class="metric-value">
+                            {% if appointment.payment %}
+                                {{ appointment.payment.amount }} тг
+                            {% else %}
+                                Не указана
+                            {% endif %}
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="text-muted">Оплата</div>
-                        <div>{{ appointment.payment.get_status_display }}</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-box">
+                        <div class="metric-label">Оплата</div>
+                        <div class="metric-value">
+                            {% if appointment.payment %}
+                                {{ appointment.payment.get_status_display }}
+                            {% else %}
+                                Нет оплаты
+                            {% endif %}
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="text-muted">Статус приема</div>
-                        <div>{{ appointment.get_status_display }}</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-box">
+                        <div class="metric-label">Статус приема</div>
+                        <div class="metric-value">{{ appointment.get_status_display }}</div>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
+
     {% if appointment.medical_record %}
         <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h2 class="h5">Медицинская запись</h2>
-                    <dl class="row mb-0">
-                        <dt class="col-sm-3">Жалобы</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.complaints |safe }}</dd>
-                        <dt class="col-sm-3">Диагноз</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.diagnosis |safe}}</dd>
-                        <dt class="col-sm-3">Рекомендации</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.recommendations|default:"Не указаны" |safe }}</dd>
-                        <dt class="col-sm-3">Итог</dt>
-                        <dd class="col-sm-9">
-                            {% if appointment.medical_record.recommendations %}
-                                {{ appointment.medical_record.recommendations|safe }}
-                            {% else %}
-                                Не указаны
-                            {% endif %}
-                        </dd>
-                    </dl>
+            <section class="info-card">
+                <h2 class="h5 mb-3">Медицинская запись</h2>
+
+                <div class="info-row">
+                    <div class="info-label">Жалобы</div>
+                    <div class="info-value rich-output">{{ appointment.medical_record.complaints|safe }}</div>
                 </div>
-            </div>
+                <div class="info-row">
+                    <div class="info-label">Предварительный диагноз</div>
+                    <div class="info-value">
+                        {% if appointment.medical_record.preliminary_icd10 %}
+                            {{ appointment.medical_record.preliminary_icd10.code }} — {{ appointment.medical_record.preliminary_icd10.name }}
+                        {% else %}
+                            Не указан
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Клинический диагноз</div>
+                    <div class="info-value">
+                        {% if appointment.medical_record.clinical_icd10 %}
+                            {{ appointment.medical_record.clinical_icd10.code }} — {{ appointment.medical_record.clinical_icd10.name }}
+                        {% else %}
+                            Не указан
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">План лечения</div>
+                    <div class="info-value rich-output">{{ appointment.medical_record.treatment_plan|safe|default:"Не указан" }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Рекомендации</div>
+                    <div class="info-value rich-output">{{ appointment.medical_record.recommendations|safe|default:"Не указаны" }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Итог приема</div>
+                    <div class="info-value">{{ appointment.medical_record.get_outcome_display }}</div>
+                </div>
+            </section>
         </div>
     {% endif %}
 </div>
+
+<style>
+.info-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+}
+
+.info-row {
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.info-row:last-child {
+    border-bottom: 0;
+}
+
+.info-label {
+    font-weight: 700;
+    color: #212529;
+}
+
+.info-value {
+    color: #212529;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.rich-output p {
+    margin: 0 0 .4rem;
+}
+
+.rich-output p:last-child {
+    margin-bottom: 0;
+}
+
+.metric-box {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    height: 100%;
+    background: #f8f9fa;
+}
+
+.metric-label {
+    color: #6c757d;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.metric-value {
+    font-weight: 600;
+    color: #212529;
+}
+
+.referral-banner {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    border: 1px solid #b6d4fe;
+    background: #e7f1ff;
+    border-radius: 6px;
+    padding: 14px 16px;
+}
+
+.referral-label {
+    color: #084298;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.referral-title {
+    font-weight: 700;
+    color: #052c65;
+}
+
+.referral-text {
+    color: #052c65;
+    margin-top: 4px;
+}
+
+.referral-text p {
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .info-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .referral-banner {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+</style>
 {% endblock %}

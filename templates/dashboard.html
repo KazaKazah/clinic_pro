@@ -11,78 +11,911 @@
     <a class="btn btn-primary" href="{% url 'patient_search_page' %}">Новое обращение</a>
 </div>
 
-<div class="row g-3 mb-4">
-    <div class="col-sm-6 col-lg-3">
-        <div class="card border-warning">
-            <div class="card-body">
-                <div class="text-muted">Ожидают оплаты</div>
-                <div class="display-6">{{ waiting_payment_count }}</div>
-            </div>
-        </div>
+<div class="dashboard-stats mb-4">
+    <div class="stat-card border-warning">
+        <div class="stat-label">Ожидают оплаты</div>
+        <div class="stat-value">{{ waiting_payment_count }}</div>
+        <div class="stat-sub">Не оплачено</div>
     </div>
-    <div class="col-sm-6 col-lg-3">
-        <div class="card border-primary">
-            <div class="card-body">
-                <div class="text-muted">Направлены врачу</div>
-                <div class="display-6">{{ sent_to_doctor_count }}</div>
-            </div>
-        </div>
+
+    <div class="stat-card border-primary">
+        <div class="stat-label">Ожидают врача</div>
+        <div class="stat-value">{{ waiting_doctor_count }}</div>
+        <div class="stat-sub">В очереди</div>
     </div>
-    <div class="col-sm-6 col-lg-3">
-        <div class="card border-info">
-            <div class="card-body">
-                <div class="text-muted">На приеме</div>
-                <div class="display-6">{{ in_progress_count }}</div>
-            </div>
-        </div>
+
+    <div class="stat-card border-info">
+        <div class="stat-label">На приеме</div>
+        <div class="stat-value">{{ in_progress_count }}</div>
+        <div class="stat-sub">Идет прием</div>
     </div>
-    <div class="col-sm-6 col-lg-3">
-        <div class="card border-success">
-            <div class="card-body">
-                <div class="text-muted">Завершены</div>
-                <div class="display-6">{{ completed_count }}</div>
-            </div>
-        </div>
+
+    <div class="stat-card border-success">
+        <div class="stat-label">Завершены</div>
+        <div class="stat-value">{{ completed_count }}</div>
+        <div class="stat-sub">Закрытые приемы</div>
+    </div>
+
+    <div class="stat-card border-secondary">
+        <div class="stat-label">Перенаправлены</div>
+        <div class="stat-value">{{ referred_count }}</div>
+        <div class="stat-sub">От специалистов</div>
+    </div>
+
+    <div class="stat-card border-dark">
+        <div class="stat-label">Плановая сумма</div>
+        <div class="stat-value money">{{ expected_amount }} тг</div>
+        <div class="stat-sub">По услугам за день</div>
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-body">
-        <h2 class="h5 mb-3">Сегодняшние приемы</h2>
-        <div class="table-responsive">
-            <table class="table align-middle">
+<div class="dashboard-panel mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h2 class="h5 mb-1">Календарь специалиста</h2>
+            <div class="text-muted small">
+                Неделя: {{ week_start|date:"d.m.Y" }} - {{ next_week|date:"d.m.Y" }}
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            {% if selected_doctor %}
+                <a class="btn btn-outline-secondary btn-sm"
+                   href="?doctor={{ selected_doctor.id }}&week={{ previous_week|date:'Y-m-d' }}">
+                    Предыдущая неделя
+                </a>
+                <a class="btn btn-outline-secondary btn-sm"
+                   href="?doctor={{ selected_doctor.id }}&week={{ next_week|date:'Y-m-d' }}">
+                    Следующая неделя
+                </a>
+            {% else %}
+                <a class="btn btn-outline-secondary btn-sm" href="?week={{ previous_week|date:'Y-m-d' }}">
+                    Предыдущая неделя
+                </a>
+                <a class="btn btn-outline-secondary btn-sm" href="?week={{ next_week|date:'Y-m-d' }}">
+                    Следующая неделя
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if can_view_all %}
+        <div class="doctor-switcher mb-3">
+            <div class="doctor-switcher-title">Специалисты</div>
+            <div class="doctor-switcher-list">
+                {% for doctor in available_doctors %}
+                    <a
+                        class="doctor-switcher-item {% if selected_doctor and selected_doctor.id == doctor.id %}active{% endif %}"
+                        href="?doctor={{ doctor.id }}&week={{ week_start|date:'Y-m-d' }}"
+                    >
+                        <span class="doctor-switcher-name">{{ doctor.full_name }}</span>
+                        <span class="doctor-switcher-meta">
+                            {{ doctor.specialty.name }}
+                            {% if doctor.room_number %}
+                                · каб. {{ doctor.room_number }}
+                            {% endif %}
+                        </span>
+                    </a>
+                {% empty %}
+                    <div class="text-muted">Активные врачи не добавлены.</div>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        {% if selected_doctor %}
+            <div class="selected-doctor-card mb-3">
+                <div class="selected-doctor-label">Ваш календарь</div>
+                <div class="selected-doctor-name">{{ selected_doctor.full_name }}</div>
+                <div class="selected-doctor-meta">
+                    {{ selected_doctor.specialty.name }}
+                    {% if selected_doctor.room_number %}
+                        · кабинет {{ selected_doctor.room_number }}
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-warning mb-3">
+                Для вашего пользователя не найден профиль врача. Обратитесь к администратору.
+            </div>
+        {% endif %}
+    {% endif %}
+
+    {% if selected_doctor %}
+        <div class="specialist-calendar-wrap">
+            <table class="specialist-week-calendar">
                 <thead>
                 <tr>
-                    <th>Время</th>
-                    <th>Пациент</th>
-                    <th>Врач</th>
-                    <th>Услуга</th>
-                    <th>Оплата</th>
-                    <th>Статус</th>
-                    <th></th>
+                    <th class="time-col">Время</th>
+                    {% for day in week_days %}
+                        <th class="{% if day.is_today %}today-col{% endif %}">
+                            <div class="week-day-head">
+                                <div class="week-day-name">{{ day.label }}</div>
+                                <div class="week-day-date">{{ day.date|date:"d.m" }}</div>
+                            </div>
+                        </th>
+                    {% endfor %}
                 </tr>
                 </thead>
+
                 <tbody>
-                {% for appointment in appointments %}
+                {% for row in schedule_rows %}
                     <tr>
-                        <td>{{ appointment.appointment_time|time:"H:i" }}</td>
-                        <td>{{ appointment.patient.full_name }}</td>
-                        <td>{{ appointment.doctor.full_name }}</td>
-                        <td>{{ appointment.service.name }}</td>
-                        <td>{{ appointment.payment.get_status_display }}</td>
-                        <td>{{ appointment.get_status_display }}</td>
-                        <td>
-                            <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_detail_page' appointment.id %}">Открыть</a>
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="7" class="text-muted">На сегодня приемов пока нет.</td>
+                        <td class="time-col">{{ row.time|time:"H:i" }}</td>
+
+                        {% for day in row.days %}
+                            <td class="{% if day.date == today %}today-col{% endif %}">
+                                {% if day.appointments %}
+                                    <div class="calendar-cell-stack">
+                                        {% for appointment in day.appointments %}
+                                            <a
+                                                class="calendar-appointment status-{{ appointment.status }}"
+                                                href="{% url 'appointment_detail_page' appointment.id %}"
+                                            >
+                                                <div class="calendar-patient">{{ appointment.patient.full_name }}</div>
+                                                <div class="calendar-service">{{ appointment.service.name }}</div>
+
+                                                <div class="calendar-footer">
+                                                    {% if appointment.payment %}
+                                                        {% if appointment.payment.status == "paid" %}
+                                                            <span class="calendar-pay paid">Оплачено</span>
+                                                        {% elif appointment.payment.status == "partial" %}
+                                                            <span class="calendar-pay partial">Частично</span>
+                                                        {% elif appointment.payment.status == "free" %}
+                                                            <span class="calendar-pay free">Бесплатно</span>
+                                                        {% else %}
+                                                            <span class="calendar-pay not-paid">Не оплачено</span>
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <span class="calendar-pay not-paid">Нет оплаты</span>
+                                                    {% endif %}
+
+                                                    {% if appointment.created_from_referral %}
+                                                        <span class="calendar-referral">Направление</span>
+                                                    {% endif %}
+                                                </div>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="calendar-empty">Свободно</div>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
                     </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
+    {% endif %}
+</div>
+
+
+
+
+
+<div class="dashboard-panel">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h2 class="h5 mb-1">Сегодняшние приемы</h2>
+            <div class="text-muted small">
+                Обычные обращения, перенаправления от врачей, оплата и текущий статус приема.
+            </div>
+        </div>
+        <div class="small text-muted">
+            Оплачено: <strong>{{ paid_amount }} тг</strong>
+        </div>
+    </div>
+
+    <div class="appointment-filters mb-3">
+        <button class="appointment-filter active" type="button" data-filter="all">Все</button>
+        <button class="appointment-filter" type="button" data-filter="payment">Ожидают оплаты</button>
+        <button class="appointment-filter" type="button" data-filter="waiting">Ожидают врача</button>
+        <button class="appointment-filter" type="button" data-filter="in_progress">На приеме</button>
+        <button class="appointment-filter" type="button" data-filter="referral">Перенаправления</button>
+        <button class="appointment-filter" type="button" data-filter="completed">Завершены</button>
+    </div>
+
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle dashboard-table">
+            <thead>
+            <tr>
+                <th>Время</th>
+                <th>Пациент</th>
+                <th>Врач</th>
+                <th>Услуга</th>
+                <th>Сумма</th>
+                <th>Оплата</th>
+                <th>Источник</th>
+                <th>Статус</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for appointment in appointments %}
+                <tr
+                    data-status="{{ appointment.status }}"
+                    data-payment="{% if appointment.payment %}{{ appointment.payment.status }}{% else %}not_paid{% endif %}"
+                    data-referral="{% if appointment.created_from_referral %}yes{% else %}no{% endif %}"
+                >
+                    <td class="text-nowrap">
+                        <strong>{{ appointment.appointment_time|time:"H:i" }}</strong>
+                    </td>
+
+                    <td>
+                        <div class="fw-semibold">{{ appointment.patient.full_name }}</div>
+                        <div class="text-muted small">ИИН {{ appointment.patient.iin }}</div>
+                    </td>
+
+                    <td>
+                        <div>{{ appointment.doctor.full_name }}</div>
+                        <div class="text-muted small">
+                            {{ appointment.doctor.specialty.name }}
+                            {% if appointment.doctor.room_number %}
+                                · каб. {{ appointment.doctor.room_number }}
+                            {% endif %}
+                        </div>
+                    </td>
+
+                    <td>
+                        <div>{{ appointment.service.name }}</div>
+                        <div class="text-muted small">
+                            {{ appointment.service.get_service_type_display|default:"Услуга" }}
+                        </div>
+                    </td>
+
+                    <td class="text-nowrap">
+                        {% if appointment.payment %}
+                            {{ appointment.payment.amount }} тг
+                        {% else %}
+                            {{ appointment.service.price }} тг
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if appointment.payment %}
+                            {% if appointment.payment.status == "paid" %}
+                                <span class="badge text-bg-success">{{ appointment.payment.get_status_display }}</span>
+                            {% elif appointment.payment.status == "partial" %}
+                                <span class="badge text-bg-warning">{{ appointment.payment.get_status_display }}</span>
+                            {% elif appointment.payment.status == "free" %}
+                                <span class="badge text-bg-secondary">{{ appointment.payment.get_status_display }}</span>
+                            {% else %}
+                                <span class="badge text-bg-danger">{{ appointment.payment.get_status_display }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge text-bg-danger">Нет оплаты</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if appointment.created_from_referral %}
+                            <div class="source-referral">
+                                <span class="badge text-bg-primary mb-1">Направление</span>
+                                <div class="small">
+                                    от {{ appointment.created_from_referral.source_appointment.doctor.full_name }}
+                                </div>
+                            </div>
+                        {% else %}
+                            <span class="text-muted small">Регистратура</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if appointment.status == "completed" %}
+                            <span class="badge text-bg-success">{{ appointment.get_status_display }}</span>
+                        {% elif appointment.status == "in_progress" %}
+                            <span class="badge text-bg-info">{{ appointment.get_status_display }}</span>
+                        {% elif appointment.status == "waiting" %}
+                            <span class="badge text-bg-primary">{{ appointment.get_status_display }}</span>
+                        {% elif appointment.status == "scheduled" %}
+                            <span class="badge text-bg-secondary">{{ appointment.get_status_display }}</span>
+                        {% elif appointment.status == "cancelled" %}
+                            <span class="badge text-bg-dark">{{ appointment.get_status_display }}</span>
+                        {% else %}
+                            <span class="badge text-bg-light text-dark">{{ appointment.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="text-end">
+                        <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_detail_page' appointment.id %}">
+                            Открыть
+                        </a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="9" class="text-muted py-4">
+                        На сегодня приемов пока нет.
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
+
+<style>
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.stat-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 14px 16px;
+    min-height: 106px;
+}
+
+.stat-label {
+    color: #495057;
+    font-size: 14px;
+    margin-bottom: 6px;
+}
+
+.stat-value {
+    font-size: 30px;
+    line-height: 1.1;
+    color: #212529;
+}
+
+.stat-value.money {
+    font-size: 20px;
+    font-weight: 700;
+    margin-top: 8px;
+}
+
+.stat-sub {
+    color: #6c757d;
+    font-size: 13px;
+    margin-top: 6px;
+}
+
+.dashboard-panel {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+}
+
+.dashboard-table th {
+    white-space: nowrap;
+    color: #212529;
+}
+
+.dashboard-table td {
+    vertical-align: middle;
+}
+
+.source-referral {
+    min-width: 150px;
+}
+
+.badge {
+    font-weight: 500;
+}
+
+@media (max-width: 1400px) {
+    .dashboard-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
+.doctor-switcher {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #f8f9fa;
+    padding: 12px;
+}
+
+.doctor-switcher-title {
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.doctor-switcher-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.doctor-switcher-item {
+    display: block;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #fff;
+    padding: 8px 10px;
+    color: #212529;
+    text-decoration: none;
+    min-width: 190px;
+}
+
+.doctor-switcher-item:hover {
+    background: #f1f3f5;
+    color: #212529;
+}
+
+.doctor-switcher-item.active {
+    border-color: #0d6efd;
+    background: #e7f1ff;
+}
+
+.doctor-switcher-name {
+    display: block;
+    font-weight: 700;
+}
+
+.doctor-switcher-meta {
+    display: block;
+    color: #6c757d;
+    font-size: 13px;
+    margin-top: 2px;
+}
+
+.selected-doctor-card {
+    border: 1px solid #b6d4fe;
+    border-radius: 6px;
+    background: #e7f1ff;
+    padding: 12px;
+}
+
+.selected-doctor-label {
+    color: #084298;
+    font-size: 13px;
+}
+
+.selected-doctor-name {
+    font-weight: 700;
+    color: #052c65;
+}
+
+.selected-doctor-meta {
+    color: #084298;
+    font-size: 14px;
+}
+
+.specialist-calendar-wrap {
+    overflow-x: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+}
+
+.specialist-week-calendar {
+    width: 100%;
+    min-width: 980px;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+}
+
+.specialist-week-calendar th,
+.specialist-week-calendar td {
+    border-right: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: top;
+}
+
+.specialist-week-calendar th:last-child,
+.specialist-week-calendar td:last-child {
+    border-right: 0;
+}
+
+.specialist-week-calendar tr:last-child td {
+    border-bottom: 0;
+}
+
+.specialist-week-calendar th {
+    background: #f8f9fa;
+    padding: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.specialist-week-calendar td {
+    padding: 6px;
+    height: 78px;
+}
+
+.time-col {
+    width: 74px;
+    min-width: 74px;
+    background: #f8f9fa;
+    font-weight: 700;
+    text-align: center;
+    color: #495057;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+}
+
+td.time-col {
+    padding-top: 12px;
+}
+
+.week-day-head {
+    text-align: center;
+    min-width: 120px;
+}
+
+.week-day-name {
+    font-weight: 700;
+    color: #212529;
+}
+
+.week-day-date {
+    color: #6c757d;
+    font-size: 13px;
+    margin-top: 2px;
+}
+
+.today-col {
+    background: #f8fbff;
+}
+
+th.today-col {
+    background: #e7f1ff;
+}
+
+.calendar-cell-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.calendar-appointment {
+    display: block;
+    min-height: 58px;
+    border: 1px solid #cfe2ff;
+    border-left: 4px solid #0d6efd;
+    border-radius: 6px;
+    padding: 7px;
+    background: #f8fbff;
+    color: #212529;
+    text-decoration: none;
+}
+
+.calendar-appointment:hover {
+    background: #e7f1ff;
+    color: #212529;
+}
+
+.calendar-appointment.status-completed {
+    border-left-color: #198754;
+    background: #f6fffa;
+}
+
+.calendar-appointment.status-in_progress {
+    border-left-color: #0dcaf0;
+    background: #f3fcff;
+}
+
+.calendar-appointment.status-scheduled {
+    border-left-color: #6c757d;
+    background: #f8f9fa;
+}
+
+.calendar-appointment.status-cancelled {
+    border-left-color: #212529;
+    background: #f1f3f5;
+    opacity: .75;
+}
+
+.calendar-patient {
+    font-weight: 700;
+    margin-bottom: 2px;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-service {
+    color: #495057;
+    font-size: 12px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.calendar-pay,
+.calendar-referral {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-size: 11px;
+    line-height: 1.2;
+}
+
+.calendar-pay.paid {
+    background: #d1e7dd;
+    color: #0f5132;
+}
+
+.calendar-pay.partial {
+    background: #fff3cd;
+    color: #664d03;
+}
+
+.calendar-pay.free {
+    background: #e2e3e5;
+    color: #41464b;
+}
+
+.calendar-pay.not-paid {
+    background: #f8d7da;
+    color: #842029;
+}
+
+.calendar-referral {
+    background: #cfe2ff;
+    color: #084298;
+}
+
+.calendar-empty {
+    min-height: 58px;
+    border: 1px dashed #dee2e6;
+    border-radius: 6px;
+    color: #adb5bd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+
+.specialist-calendar {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+}
+
+.specialist-calendar th,
+.specialist-calendar td {
+    border-right: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: top;
+}
+
+.specialist-calendar th:last-child,
+.specialist-calendar td:last-child {
+    border-right: 0;
+}
+
+.specialist-calendar tr:last-child td {
+    border-bottom: 0;
+}
+
+.specialist-calendar th {
+    background: #f8f9fa;
+    padding: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.specialist-calendar td {
+    padding: 6px;
+    height: 72px;
+}
+
+.time-col {
+    width: 78px;
+    min-width: 78px;
+    background: #f8f9fa;
+    font-weight: 700;
+    text-align: center;
+    color: #495057;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+}
+
+td.time-col {
+    padding-top: 14px;
+}
+
+.doctor-head {
+    min-width: 190px;
+}
+
+.doctor-name {
+    font-weight: 700;
+    color: #212529;
+}
+
+.doctor-meta {
+    color: #6c757d;
+    font-size: 13px;
+    margin-top: 2px;
+}
+
+.calendar-appointment {
+    display: block;
+    min-height: 58px;
+    border: 1px solid #cfe2ff;
+    border-left: 4px solid #0d6efd;
+    border-radius: 6px;
+    padding: 8px;
+    background: #f8fbff;
+    color: #212529;
+    text-decoration: none;
+}
+
+.calendar-appointment:hover {
+    background: #e7f1ff;
+    color: #212529;
+}
+
+.calendar-appointment.status-completed {
+    border-left-color: #198754;
+    background: #f6fffa;
+}
+
+.calendar-appointment.status-in_progress {
+    border-left-color: #0dcaf0;
+    background: #f3fcff;
+}
+
+.calendar-appointment.status-scheduled {
+    border-left-color: #6c757d;
+    background: #f8f9fa;
+}
+
+.calendar-appointment.status-cancelled {
+    border-left-color: #212529;
+    background: #f1f3f5;
+    opacity: .75;
+}
+
+.calendar-patient {
+    font-weight: 700;
+    margin-bottom: 3px;
+}
+
+.calendar-service {
+    color: #495057;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.calendar-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.calendar-pay,
+.calendar-referral {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.calendar-pay.paid {
+    background: #d1e7dd;
+    color: #0f5132;
+}
+
+.calendar-pay.partial {
+    background: #fff3cd;
+    color: #664d03;
+}
+
+.calendar-pay.free {
+    background: #e2e3e5;
+    color: #41464b;
+}
+
+.calendar-pay.not-paid {
+    background: #f8d7da;
+    color: #842029;
+}
+
+.calendar-referral {
+    background: #cfe2ff;
+    color: #084298;
+}
+
+.calendar-empty {
+    min-height: 76px;
+    border: 1px dashed #dee2e6;
+    border-radius: 6px;
+    color: #adb5bd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+}
+
+.appointment-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.appointment-filter {
+    border: 1px solid #dee2e6;
+    background: #fff;
+    color: #212529;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 14px;
+}
+
+.appointment-filter:hover {
+    background: #f8f9fa;
+}
+
+.appointment-filter.active {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+
+</style>
+
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const filterButtons = Array.from(document.querySelectorAll(".appointment-filter"));
+    const rows = Array.from(document.querySelectorAll(".dashboard-table tbody tr[data-status]"));
+
+    function rowMatches(row, filter) {
+        if (filter === "all") {
+            return true;
+        }
+
+        if (filter === "payment") {
+            return row.dataset.payment === "not_paid";
+        }
+
+        if (filter === "referral") {
+            return row.dataset.referral === "yes";
+        }
+
+        return row.dataset.status === filter;
+    }
+
+    function applyFilter(filter) {
+        rows.forEach(function (row) {
+            row.style.display = rowMatches(row, filter) ? "" : "none";
+        });
+
+        filterButtons.forEach(function (button) {
+            button.classList.toggle("active", button.dataset.filter === filter);
+        });
+    }
+
+    filterButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+            applyFilter(button.dataset.filter);
+        });
+    });
+});
+</script>
+
 {% endblock %}

@@ -103,6 +103,26 @@
     </div>
 </div>
 
+<div class="medical-dictionary-card mt-3" id="specialist-referral-block">
+    <h2 class="h5 mb-3">Направление к другому специалисту</h2>
+    <div class="alert alert-secondary">
+        Заполняется, если итог приема выбран как “Направлен к другому специалисту”.
+    </div>
+
+    <div class="row g-3">
+        {% for field in referral_form %}
+            <div class="{% if field.name == 'reason' %}col-12{% else %}col-md-6{% endif %}">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+
 
 
     <div class="alert alert-info mt-4 mb-0">

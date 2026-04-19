@@ -207,3 +207,63 @@ class MedicalRecord(models.Model):
 
     def __str__(self):
         return f"Медицинская запись: {self.appointment}"
+    
+
+class SpecialistReferral(models.Model):
+    STATUS_CHOICES = [
+        ("created", "Создано"),
+        ("appointment_created", "Прием создан"),
+        ("cancelled", "Отменено"),
+    ]
+
+    source_appointment = models.ForeignKey(
+        Appointment,
+        on_delete=models.CASCADE,
+        related_name="specialist_referrals",
+        verbose_name="Исходный прием",
+    )
+    patient = models.ForeignKey(
+        "patients.Patient",
+        on_delete=models.CASCADE,
+        verbose_name="Пациент",
+    )
+    target_specialty = models.ForeignKey(
+        Specialty,
+        on_delete=models.PROTECT,
+        verbose_name="Специальность",
+    )
+    target_doctor = models.ForeignKey(
+        Doctor,
+        on_delete=models.PROTECT,
+        verbose_name="Врач",
+    )
+    target_service = models.ForeignKey(
+        "billing.MedicalService",
+        on_delete=models.PROTECT,
+        verbose_name="Услуга",
+    )
+    reason = models.TextField("Причина направления")
+    appointment = models.OneToOneField(
+        Appointment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_from_referral",
+        verbose_name="Созданный прием",
+    )
+    status = models.CharField("Статус", max_length=30, choices=STATUS_CHOICES, default="created")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        verbose_name="Направил",
+    )
+    created_at = models.DateTimeField("Создано", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Направление к специалисту"
+        verbose_name_plural = "Направления к специалистам"
+
+    def __str__(self):
+        return f"{self.patient} -> {self.target_doctor}"
+
