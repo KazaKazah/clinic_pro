@@ -83,13 +83,19 @@
                     <h2 class="h5">Медицинская запись</h2>
                     <dl class="row mb-0">
                         <dt class="col-sm-3">Жалобы</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.complaints }}</dd>
+                        <dd class="col-sm-9">{{ appointment.medical_record.complaints |safe }}</dd>
                         <dt class="col-sm-3">Диагноз</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.diagnosis }}</dd>
+                        <dd class="col-sm-9">{{ appointment.medical_record.diagnosis |safe}}</dd>
                         <dt class="col-sm-3">Рекомендации</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.recommendations|default:"Не указаны" }}</dd>
+                        <dd class="col-sm-9">{{ appointment.medical_record.recommendations|default:"Не указаны" |safe }}</dd>
                         <dt class="col-sm-3">Итог</dt>
-                        <dd class="col-sm-9">{{ appointment.medical_record.get_outcome_display }}</dd>
+                        <dd class="col-sm-9">
+                            {% if appointment.medical_record.recommendations %}
+                                {{ appointment.medical_record.recommendations|safe }}
+                            {% else %}
+                                Не указаны
+                            {% endif %}
+                        </dd>
                     </dl>
                 </div>
             </div>

@@ -10,6 +10,32 @@ class MedicalService(models.Model):
         verbose_name="Специальность",
     )
     price = models.DecimalField("Стоимость", max_digits=10, decimal_places=2)
+    SERVICE_TYPES = [
+    ("primary_consultation", "Первичная консультация"),
+    ("repeat_consultation", "Повторная консультация"),
+    ("ultrasound", "УЗИ"),
+    ("procedure", "Процедура"),
+    ("laboratory", "Лабораторное исследование"),
+    ("other", "Другое"),
+    ]
+
+    service_type = models.CharField(
+        "Тип услуги",
+        max_length=40,
+        choices=SERVICE_TYPES,
+        default="primary_consultation",
+    )
+    requires_referral = models.BooleanField("Требует направление", default=False)
+    allow_repeat = models.BooleanField("Можно назначать повторно", default=True)
+    daily_limit = models.PositiveIntegerField(
+        "Ограничение услуги в день",
+        null=True,
+        blank=True,
+        help_text="Оставьте пустым, если ограничения нет.",
+    )
+
+
+
     is_active = models.BooleanField("Активна", default=True)
 
     class Meta:

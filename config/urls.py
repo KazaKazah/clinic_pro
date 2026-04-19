@@ -4,6 +4,10 @@ from django.urls import include, path
 
 from config.views import dashboard_page
 
+admin.site.site_header = "Администрирование клиники"
+admin.site.site_title = "Клиника"
+admin.site.index_title = "Панель управления"
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),

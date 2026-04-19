@@ -44,19 +44,67 @@
     </div>
 </div>
 
-<form class="card card-body shadow-sm" method="post">
+<form class="card card-body shadow-sm consultation-form" method="post">
     {% csrf_token %}
-    <div class="row g-3">
-        {% for field in form %}
-            <div class="{% if field.name == 'outcome' %}col-md-6{% else %}col-12{% endif %}">
-                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}
-                    <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+    <div class="medical-editor-layout">
+    <div class="medical-editor-sidebar">
+        <div class="medical-editor-sidebar-title">Разделы карты</div>
+
+        <div class="medical-section-list">
+            {% for field in form %}
+                {% if field.name == "complaints" or field.name == "anamnesis_disease" or field.name == "anamnesis_life" or field.name == "status_praesens" or field.name == "gynecological_anamnesis" or field.name == "diagnosis_reasoning" or field.name == "treatment_plan" or field.name == "recommendations" %}
+                    <button
+                        class="medical-section-button"
+                        type="button"
+                        data-target="field-panel-{{ field.name }}"
+                    >
+                        {{ field.label }}
+                    </button>
                 {% endif %}
-            </div>
-        {% endfor %}
+            {% endfor %}
+        </div>
     </div>
+
+    <div class="medical-editor-main">
+        {% for field in form %}
+            {% if field.name == "complaints" or field.name == "anamnesis_disease" or field.name == "anamnesis_life" or field.name == "status_praesens" or field.name == "gynecological_anamnesis" or field.name == "diagnosis_reasoning" or field.name == "treatment_plan" or field.name == "recommendations" %}
+                <div class="medical-field-panel" id="field-panel-{{ field.name }}">
+                    <div class="medical-editor-card">
+                        <div class="medical-editor-card-header">
+                            <h2 class="h5 mb-0">{{ field.label }}</h2>
+                        </div>
+                        <div class="medical-editor-card-body">
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+
+        <div class="medical-dictionary-card mt-3">
+            <h2 class="h5 mb-3">Диагнозы и итог приема</h2>
+            <div class="row g-3">
+                {% for field in form %}
+                    {% if field.name != "complaints" and field.name != "anamnesis_disease" and field.name != "anamnesis_life" and field.name != "status_praesens" and field.name != "gynecological_anamnesis" and field.name != "diagnosis_reasoning" and field.name != "treatment_plan" and field.name != "recommendations" %}
+                        <div class="col-md-6">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
     <div class="alert alert-info mt-4 mb-0">
         После сохранения прием будет закрыт, а обращение получит итоговый статус: завершено, обследование, госпитализация, повторный прием или направление.
     </div>
@@ -65,4 +113,210 @@
         <a class="btn btn-outline-secondary" href="{% url 'doctor_queue_page' %}">Назад к очереди</a>
     </div>
 </form>
+
+
+
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+
+<style>
+.medical-editor-layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.medical-editor-sidebar {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #fff;
+    padding: 12px;
+    position: sticky;
+    top: 80px;
+}
+
+.medical-editor-sidebar-title {
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.medical-section-list {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.medical-section-button {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #dee2e6;
+    background: #fff;
+    text-align: left;
+    padding: 11px 12px;
+    color: #212529;
+}
+
+.medical-section-button:last-child {
+    border-bottom: 0;
+}
+
+.medical-section-button:hover {
+    background: #f8f9fa;
+}
+
+.medical-section-button.active {
+    background: #0d6efd;
+    color: #fff;
+    font-weight: 600;
+}
+
+.medical-editor-main {
+    min-width: 0;
+}
+
+.medical-field-panel {
+    display: none;
+}
+
+.medical-field-panel.active {
+    display: block;
+}
+
+.medical-editor-card,
+.medical-dictionary-card {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.medical-editor-card-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid #dee2e6;
+    background: #f8f9fa;
+}
+
+.medical-editor-card-body,
+.medical-dictionary-card {
+    padding: 14px;
+}
+
+.word-editor-wrapper {
+    background: #fff;
+}
+
+.word-editor-wrapper .ql-toolbar.ql-snow {
+    border: 1px solid #ced4da;
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+    background: #f8f9fa;
+}
+
+.word-editor-wrapper .ql-container.ql-snow {
+    border: 1px solid #ced4da;
+    border-radius: 0 0 6px 6px;
+}
+
+.word-editor-wrapper .ql-editor {
+    min-height: 520px;
+    max-height: 620px;
+    overflow-y: auto;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.word-editor-wrapper .ql-editor p {
+    margin-bottom: 0.35rem;
+}
+
+@media (max-width: 900px) {
+    .medical-editor-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .medical-editor-sidebar {
+        position: static;
+    }
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    if (!window.Quill) {
+        console.error("Quill не загрузился. Проверьте подключение к интернету или CDN.");
+        return;
+    }
+
+    const toolbarOptions = [
+        [{ "header": [false, 1, 2, 3] }],
+        ["bold", "italic", "underline", "strike"],
+        [{ "color": [] }, { "background": [] }],
+        [{ "list": "ordered" }, { "list": "bullet" }],
+        [{ "indent": "-1" }, { "indent": "+1" }],
+        [{ "align": [] }],
+        ["blockquote"],
+        ["link"],
+        ["clean"]
+    ];
+
+    document.querySelectorAll(".consultation-form textarea").forEach(function (textarea) {
+        if (textarea.classList.contains("quill-source")) {
+            return;
+        }
+
+        textarea.classList.add("quill-source");
+        textarea.style.display = "none";
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "word-editor-wrapper";
+
+        const editor = document.createElement("div");
+        editor.className = "word-editor";
+        editor.innerHTML = textarea.value || "";
+
+        wrapper.appendChild(editor);
+        textarea.parentNode.insertBefore(wrapper, textarea.nextSibling);
+
+        const quill = new Quill(editor, {
+            theme: "snow",
+            modules: {
+                toolbar: toolbarOptions
+            }
+        });
+
+        const form = textarea.closest("form");
+        form.addEventListener("submit", function () {
+            const plainText = quill.getText().trim();
+            textarea.value = plainText ? quill.root.innerHTML : "";
+        });
+    });
+
+    const buttons = Array.from(document.querySelectorAll(".medical-section-button"));
+    const panels = Array.from(document.querySelectorAll(".medical-field-panel"));
+
+    function activatePanel(targetId) {
+        buttons.forEach(function (button) {
+            button.classList.toggle("active", button.dataset.target === targetId);
+        });
+
+        panels.forEach(function (panel) {
+            panel.classList.toggle("active", panel.id === targetId);
+        });
+    }
+
+    if (buttons.length > 0) {
+        activatePanel(buttons[0].dataset.target);
+    }
+
+    buttons.forEach(function (button) {
+        button.addEventListener("click", function () {
+            activatePanel(button.dataset.target);
+        });
+    });
+});
+</script>
+
+
 {% endblock %}

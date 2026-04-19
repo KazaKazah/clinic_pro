@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 
 class Specialty(models.Model):
@@ -98,6 +99,18 @@ class Appointment(models.Model):
     appointment_time = models.TimeField("Время приема")
     status = models.CharField("Статус", max_length=30, choices=STATUS_CHOICES, default="waiting")
     registrar_comment = models.TextField("Комментарий регистратора", blank=True)
+    
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="performed_appointments",
+        verbose_name="Услугу выполнил",
+    )
+    performed_at = models.DateTimeField("Дата и время выполнения услуги", null=True, blank=True)
+    is_locked = models.BooleanField("Запрещена отмена/изменение", default=False)
+
     created_at = models.DateTimeField("Создан", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлен", auto_now=True)
 
@@ -108,6 +121,32 @@ class Appointment(models.Model):
 
     def __str__(self):
         return f"{self.patient} -> {self.doctor} ({self.appointment_date} {self.appointment_time})"
+    
+    def clean(self):
+        if not self.pk:
+            return
+        old = Appointment.objects.filter(pk=self.pk).first()
+        if old and old.is_locked and self.status == "cancelled":
+            raise ValidationError("Завершенный прием нельзя отменить.")
+
+    @property
+    def can_cancel(self):
+        return not self.is_locked and self.status not in {"completed", "cancelled"}
+    
+
+class ICD10Diagnosis(models.Model):
+    code = models.CharField("Код МКБ-10", max_length=20, unique=True)
+    name = models.CharField("Название диагноза", max_length=500)
+    external_url = models.URLField("Ссылка на классификатор", blank=True)
+    is_active = models.BooleanField("Активен", default=True)
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name = "Диагноз МКБ-10"
+        verbose_name_plural = "Диагнозы МКБ-10"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
 
 
 class MedicalRecord(models.Model):
@@ -125,13 +164,39 @@ class MedicalRecord(models.Model):
         related_name="medical_record",
         verbose_name="Прием",
     )
+
     complaints = models.TextField("Жалобы пациента")
-    anamnesis = models.TextField("Анамнез", blank=True)
-    objective_status = models.TextField("Объективный статус", blank=True)
-    diagnosis = models.TextField("Диагноз")
+    anamnesis_disease = models.TextField("Анамнез болезни", blank=True)
+    anamnesis_life = models.TextField("Анамнез жизни", blank=True)
+    status_praesens = models.TextField("Общее состояние / Status praesens", blank=True)
+    gynecological_anamnesis = models.TextField("Гинекологический анамнез", blank=True)
+
+    preliminary_diagnosis = models.TextField("Предварительный диагноз", blank=True)
+    preliminary_icd10 = models.ForeignKey(
+        ICD10Diagnosis,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="preliminary_records",
+        verbose_name="МКБ-10 предварительного диагноза",
+    )
+
+    diagnosis_reasoning = models.TextField("Обоснование диагноза", blank=True)
+
+    clinical_diagnosis = models.TextField("Клинический диагноз", blank=True)
+    clinical_icd10 = models.ForeignKey(
+        ICD10Diagnosis,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="clinical_records",
+        verbose_name="МКБ-10 клинического диагноза",
+    )
+
     treatment_plan = models.TextField("План лечения", blank=True)
     recommendations = models.TextField("Рекомендации", blank=True)
     outcome = models.CharField("Итог приема", max_length=40, choices=OUTCOME_CHOICES)
+
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, verbose_name="Врач")
     created_at = models.DateTimeField("Создана", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлена", auto_now=True)

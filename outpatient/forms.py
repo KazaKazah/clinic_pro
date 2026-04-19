@@ -1,7 +1,10 @@
+from dataclasses import field
+
 from django import forms
 
 from billing.models import MedicalService, Payment
 from .models import Appointment, Doctor, MedicalRecord, PatientVisit
+
 
 
 class CreateVisitAppointmentForm(forms.Form):
@@ -48,7 +51,8 @@ class CreateVisitAppointmentForm(forms.Form):
         )
         for field in self.fields.values():
             css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
-            field.widget.attrs["class"] = css_class
+            existing_classes = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{existing_classes} {css_class}".strip()
 
     def clean(self):
         cleaned_data = super().clean()
@@ -104,24 +108,48 @@ class MedicalRecordForm(forms.ModelForm):
         model = MedicalRecord
         fields = [
             "complaints",
-            "anamnesis",
-            "objective_status",
-            "diagnosis",
+            "anamnesis_disease",
+            "anamnesis_life",
+            "status_praesens",
+            "gynecological_anamnesis",
+            "preliminary_icd10",
+            "diagnosis_reasoning",
+            "clinical_icd10",
             "treatment_plan",
             "recommendations",
             "outcome",
         ]
         widgets = {
-            "complaints": forms.Textarea(attrs={"rows": 3}),
-            "anamnesis": forms.Textarea(attrs={"rows": 3}),
-            "objective_status": forms.Textarea(attrs={"rows": 3}),
-            "diagnosis": forms.Textarea(attrs={"rows": 3}),
-            "treatment_plan": forms.Textarea(attrs={"rows": 3}),
-            "recommendations": forms.Textarea(attrs={"rows": 3}),
+            "complaints": forms.Textarea(attrs={"rows": 3, "class": "rich-text"}),
+            "anamnesis_disease": forms.Textarea(attrs={"rows": 3, "class": "rich-text"}),
+            "anamnesis_life": forms.Textarea(attrs={"rows": 3, "class": "rich-text"}),
+            "status_praesens": forms.Textarea(attrs={"rows": 3, "class": "rich-text"}),
+            "gynecological_anamnesis": forms.Textarea(attrs={"rows": 3, "class": "rich-text"}),
+            "diagnosis_reasoning": forms.Textarea(attrs={"rows": 3, "class": "rich-text"}),
+            "treatment_plan": forms.Textarea(attrs={"rows": 3, "class": "rich-text"}),
+            "recommendations": forms.Textarea(attrs={"rows": 3, "class": "rich-text"}),
         }
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.fields["preliminary_icd10"].queryset = self.fields[
+            "preliminary_icd10"
+        ].queryset.filter(is_active=True)
+        self.fields["preliminary_icd10"].label = "Предварительный диагноз по МКБ-10"
+        self.fields["preliminary_icd10"].empty_label = "Выберите предварительный диагноз"
+
+        self.fields["clinical_icd10"].queryset = self.fields[
+            "clinical_icd10"
+        ].queryset.filter(is_active=True)
+        self.fields["clinical_icd10"].label = "Клинический диагноз по МКБ-10"
+        self.fields["clinical_icd10"].empty_label = "Выберите клинический диагноз"
+
+        # Если нужно сделать оба диагноза обязательными, оставь True.
+        # Если предварительный диагноз иногда не нужен, поставь False.
+        self.fields["preliminary_icd10"].required = True
+        self.fields["clinical_icd10"].required = True
+
         for field in self.fields.values():
             css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
             field.widget.attrs["class"] = css_class
+
