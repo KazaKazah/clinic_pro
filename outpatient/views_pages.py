@@ -7,8 +7,17 @@ from billing.models import Payment
 from patients.models import Patient
 from .forms import CreateVisitAppointmentForm, MedicalRecordForm, SpecialistReferralForm
 from .models import Appointment, Doctor, MedicalRecord, PatientVisit, SpecialistReferral
-
-
+from .forms import (
+    AppointmentReservationForm,
+    CreateVisitAppointmentForm,
+    MedicalRecordForm,
+    SpecialistReferralForm,
+)
+from datetime import datetime
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError, transaction
+from django.shortcuts import get_object_or_404, redirect, render
 
 
 @login_required
@@ -155,3 +164,82 @@ def appointment_consultation_page(request, appointment_id):
         },
     )
 
+@login_required
+@transaction.atomic
+def reserve_appointment_page(request):
+    doctor_id = request.GET.get("doctor")
+    raw_date = request.GET.get("date")
+    raw_time = request.GET.get("time")
+
+    doctor = get_object_or_404(Doctor, id=doctor_id, is_active=True)
+
+    try:
+        appointment_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+        appointment_time = datetime.strptime(raw_time, "%H:%M").time()
+    except (TypeError, ValueError):
+        messages.error(request, "Некорректные дата или время для бронирования.")
+        return redirect("dashboard_page")
+
+    form = AppointmentReservationForm(
+        request.POST or None,
+        doctor=doctor,
+        appointment_date=appointment_date,
+        appointment_time=appointment_time,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            appointment = form.save(registrar=request.user)
+        except IntegrityError:
+            messages.error(request, "Этот слот уже занят другим приемом.")
+            return redirect("dashboard_page")
+
+        messages.success(request, "Бронь приема создана.")
+        return redirect("appointment_detail_page", appointment_id=appointment.id)
+
+    return render(
+        request,
+        "outpatient/reserve_appointment.html",
+        {
+            "form": form,
+            "doctor": doctor,
+            "appointment_date": appointment_date,
+            "appointment_time": appointment_time,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def activate_reservation_page(request, appointment_id):
+    appointment = get_object_or_404(Appointment, id=appointment_id)
+
+    if appointment.status != "reserved":
+        messages.warning(request, "Активировать можно только забронированный прием.")
+        return redirect("appointment_detail_page", appointment_id=appointment.id)
+
+    appointment.status = "waiting"
+    appointment.visit.status = "sent_to_doctor"
+    appointment.save(update_fields=["status", "updated_at"])
+    appointment.visit.save(update_fields=["status", "updated_at"])
+
+    messages.success(request, "Пациент отмечен как прибывший. Прием отправлен врачу.")
+    return redirect("appointment_detail_page", appointment_id=appointment.id)
+
+
+@login_required
+@transaction.atomic
+def cancel_reservation_page(request, appointment_id):
+    appointment = get_object_or_404(Appointment, id=appointment_id)
+
+    if appointment.is_locked or appointment.status in {"completed", "in_progress"}:
+        messages.error(request, "Этот прием нельзя отменить.")
+        return redirect("appointment_detail_page", appointment_id=appointment.id)
+
+    appointment.status = "cancelled"
+    appointment.visit.status = "cancelled"
+    appointment.save(update_fields=["status", "updated_at"])
+    appointment.visit.save(update_fields=["status", "updated_at"])
+
+    messages.success(request, "Бронь/прием отменены.")
+    return redirect("dashboard_page")

@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 
 
+
 class Specialty(models.Model):
     name = models.CharField("Название специальности", max_length=150, unique=True)
     description = models.TextField("Описание", blank=True)
@@ -63,6 +64,7 @@ class PatientVisit(models.Model):
         ("referred", "Направлен к другому специалисту"),
         ("completed", "Завершено"),
         ("cancelled", "Отменено"),
+        ("reserved", "Забронировано"),
     ]
 
     patient = models.ForeignKey("patients.Patient", on_delete=models.CASCADE, verbose_name="Пациент")
@@ -89,6 +91,7 @@ class Appointment(models.Model):
         ("in_progress", "Идет прием"),
         ("completed", "Завершен"),
         ("cancelled", "Отменен"),
+        ("reserved", "Забронирован"),
     ]
 
     visit = models.ForeignKey(PatientVisit, on_delete=models.CASCADE, verbose_name="Обращение")
@@ -118,20 +121,40 @@ class Appointment(models.Model):
         ordering = ["appointment_date", "appointment_time"]
         verbose_name = "Прием"
         verbose_name_plural = "Приемы"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["doctor", "appointment_date", "appointment_time"],
+                condition=~models.Q(status="cancelled"),
+                name="unique_active_doctor_appointment_slot",
+            )
+        ]
 
     def __str__(self):
         return f"{self.patient} -> {self.doctor} ({self.appointment_date} {self.appointment_time})"
     
     def clean(self):
-        if not self.pk:
-            return
-        old = Appointment.objects.filter(pk=self.pk).first()
-        if old and old.is_locked and self.status == "cancelled":
-            raise ValidationError("Завершенный прием нельзя отменить.")
+        super().clean()
 
-    @property
-    def can_cancel(self):
-        return not self.is_locked and self.status not in {"completed", "cancelled"}
+        if self.pk:
+            old = Appointment.objects.filter(pk=self.pk).first()
+            if old and old.is_locked and self.status == "cancelled":
+                raise ValidationError("Завершенный прием нельзя отменить.")
+
+        duplicate_exists = Appointment.objects.filter(
+            doctor=self.doctor,
+            appointment_date=self.appointment_date,
+            appointment_time=self.appointment_time,
+        ).exclude(status="cancelled")
+
+        if self.pk:
+            duplicate_exists = duplicate_exists.exclude(pk=self.pk)
+
+        if duplicate_exists.exists():
+            raise ValidationError("У этого врача уже есть прием на выбранные дату и время.")
+
+        @property
+        def can_cancel(self):
+            return not self.is_locked and self.status not in {"completed", "cancelled"}
     
 
 class ICD10Diagnosis(models.Model):

@@ -177,7 +177,12 @@
                                         {% endfor %}
                                     </div>
                                 {% else %}
-                                    <div class="calendar-empty">Свободно</div>
+                                    <a
+                                        class="calendar-empty calendar-empty-link"
+                                        href="{% url 'reserve_appointment_page' %}?doctor={{ selected_doctor.id }}&date={{ day.date|date:'Y-m-d' }}&time={{ row.time|time:'H:i' }}"
+                                    >
+                                        + Записать
+                                    </a>
                                 {% endif %}
                             </td>
                         {% endfor %}
@@ -678,6 +683,16 @@ th.today-col {
     align-items: center;
     justify-content: center;
     font-size: 12px;
+}
+
+.calendar-empty-link {
+    text-decoration: none;
+}
+
+.calendar-empty-link:hover {
+    border-color: #0d6efd;
+    background: #e7f1ff;
+    color: #0d6efd;
 }
 
 

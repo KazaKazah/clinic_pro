@@ -10,10 +10,20 @@
             {{ appointment.appointment_date|date:"d.m.Y" }} · {{ appointment.appointment_time|time:"H:i" }}
         </div>
     </div>
+        {% if appointment.status == "reserved" %}
+            <a class="btn btn-success" href="{% url 'activate_reservation_page' appointment.id %}">
+                Пациент пришел
+            </a>
+            <a class="btn btn-outline-danger" href="{% url 'cancel_reservation_page' appointment.id %}">
+                Отменить бронь
+            </a>
+        {% endif %}
     <div class="d-flex gap-2">
-        <a class="btn btn-primary" href="{% url 'appointment_consultation_page' appointment.id %}">
-            {% if appointment.medical_record %}Открыть медицинскую запись{% else %}Начать прием{% endif %}
-        </a>
+        {% if appointment.status != "reserved" and appointment.status != "cancelled" %}
+            <a class="btn btn-primary" href="{% url 'appointment_consultation_page' appointment.id %}">
+                {% if appointment.medical_record %}Открыть медицинскую запись{% else %}Начать прием{% endif %}
+            </a>
+        {% endif %}
         <a class="btn btn-outline-primary" href="{% url 'dashboard_page' %}">На панель</a>
     </div>
 </div>
@@ -293,6 +303,11 @@
         align-items: flex-start;
         flex-direction: column;
     }
+}
+
+.calendar-appointment.status-reserved {
+    border-left-color: #ffc107;
+    background: #fffdf3;
 }
 </style>
 {% endblock %}

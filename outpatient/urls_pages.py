@@ -12,4 +12,17 @@ urlpatterns = [
         name="appointment_consultation_page",
     ),
     path("doctor/queue/", views_pages.doctor_queue_page, name="doctor_queue_page"),
+
+    path("appointments/reserve/", views_pages.reserve_appointment_page, name="reserve_appointment_page"),
+    path(
+        "appointments/<int:appointment_id>/activate-reservation/",
+        views_pages.activate_reservation_page,
+        name="activate_reservation_page",
+    ),
+    path(
+        "appointments/<int:appointment_id>/cancel-reservation/",
+        views_pages.cancel_reservation_page,
+        name="cancel_reservation_page",
+    ),
+
 ]

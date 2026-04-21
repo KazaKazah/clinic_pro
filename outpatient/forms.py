@@ -9,6 +9,7 @@ from .models import Appointment, Doctor, MedicalRecord, PatientVisit, Specialist
 
 
 
+
 class CreateVisitAppointmentForm(forms.Form):
     visit_type = forms.ChoiceField(label="Тип обращения", choices=PatientVisit.VISIT_TYPES)
     reason = forms.CharField(
@@ -265,4 +266,106 @@ class SpecialistReferralForm(forms.Form):
             self.cleaned_data.get("reason"),
         ])
 
+
+class AppointmentReservationForm(forms.Form):
+    patient = forms.ModelChoiceField(
+        label="Пациент",
+        queryset=None,
+        empty_label="Выберите пациента",
+    )
+    visit_type = forms.ChoiceField(
+        label="Тип обращения",
+        choices=PatientVisit.VISIT_TYPES,
+        initial="consultation",
+    )
+    reason = forms.CharField(
+        label="Причина записи",
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+    service = forms.ModelChoiceField(
+        label="Услуга",
+        queryset=MedicalService.objects.none(),
+        empty_label="Выберите услугу",
+    )
+    registrar_comment = forms.CharField(
+        label="Комментарий регистратора",
+        widget=forms.Textarea(attrs={"rows": 2}),
+        required=False,
+    )
+
+    def __init__(self, *args, doctor=None, appointment_date=None, appointment_time=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from patients.models import Patient
+
+        self.doctor = doctor
+        self.appointment_date = appointment_date
+        self.appointment_time = appointment_time
+
+        self.fields["patient"].queryset = Patient.objects.all().order_by(
+            "last_name",
+            "first_name",
+            "middle_name",
+        )
+
+        if doctor:
+            self.fields["service"].queryset = MedicalService.objects.filter(
+                is_active=True,
+                specialty=doctor.specialty,
+            ).order_by("name")
+
+        for field in self.fields.values():
+            css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
+            field.widget.attrs["class"] = css_class
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if not self.doctor or not self.appointment_date or not self.appointment_time:
+            raise forms.ValidationError("Не удалось определить врача, дату или время приема.")
+
+        duplicate_exists = Appointment.objects.filter(
+            doctor=self.doctor,
+            appointment_date=self.appointment_date,
+            appointment_time=self.appointment_time,
+        ).exclude(status="cancelled").exists()
+
+        if duplicate_exists:
+            raise forms.ValidationError("Этот слот уже занят. Выберите другое время.")
+
+        service = cleaned_data.get("service")
+        if service and service.specialty_id != self.doctor.specialty_id:
+            self.add_error("service", "Услуга не относится к специальности выбранного врача.")
+
+        return cleaned_data
+
+    def save(self, registrar):
+        patient = self.cleaned_data["patient"]
+        service = self.cleaned_data["service"]
+
+        visit = PatientVisit.objects.create(
+            patient=patient,
+            visit_type=self.cleaned_data["visit_type"],
+            reason=self.cleaned_data["reason"],
+            status="reserved",
+            created_by=registrar,
+        )
+
+        appointment = Appointment.objects.create(
+            visit=visit,
+            patient=patient,
+            doctor=self.doctor,
+            service=service,
+            appointment_date=self.appointment_date,
+            appointment_time=self.appointment_time,
+            status="reserved",
+            registrar_comment=self.cleaned_data["registrar_comment"],
+        )
+
+        Payment.objects.create(
+            appointment=appointment,
+            amount=service.price,
+            status="not_paid",
+        )
+
+        return appointment
 
