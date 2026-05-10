@@ -1,16 +1,17 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-
 from .models import (
     Appointment,
+    DiagnosticStudyCatalog,
+    DiagnosticStudyResult,
     Doctor,
     ICD10Diagnosis,
     MedicalRecord,
     PatientVisit,
+    SpecialistReferral,
     Specialty,
 )
-
 
 @admin.action(description="Активировать")
 def activate_items(modeladmin, request, queryset):
@@ -265,3 +266,16 @@ class MedicalRecordAdmin(admin.ModelAdmin):
             )
         }),
     )
+
+@admin.register(DiagnosticStudyCatalog)
+class DiagnosticStudyCatalogAdmin(admin.ModelAdmin):
+    list_display = ("name", "kind", "unit", "reference_range", "is_active")
+    list_filter = ("kind", "is_active")
+    search_fields = ("name",)
+
+
+@admin.register(DiagnosticStudyResult)
+class DiagnosticStudyResultAdmin(admin.ModelAdmin):
+    list_display = ("appointment", "study", "result_value", "include_in_reasoning", "performed_at")
+    list_filter = ("study__kind", "include_in_reasoning")
+    search_fields = ("study__name", "result_value", "conclusion")

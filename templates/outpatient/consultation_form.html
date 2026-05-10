@@ -44,8 +44,20 @@
     </div>
 </div>
 
-<form class="card card-body shadow-sm consultation-form" method="post">
+<form class="card card-body shadow-sm consultation-form" method="post" novalidate>
     {% csrf_token %}
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger mb-3">
+            {{ form.non_field_errors }}
+        </div>
+    {% endif %}
+
+    {% if referral_form.non_field_errors %}
+        <div class="alert alert-danger mb-3">
+            {{ referral_form.non_field_errors }}
+        </div>
+    {% endif %}
+
     <div class="medical-editor-layout">
     <div class="medical-editor-sidebar">
         <div class="medical-editor-sidebar-title">Разделы карты</div>
@@ -84,24 +96,153 @@
             {% endif %}
         {% endfor %}
 
+
+
+
         <div class="medical-dictionary-card mt-3">
-            <h2 class="h5 mb-3">Диагнозы и итог приема</h2>
-            <div class="row g-3">
-                {% for field in form %}
-                    {% if field.name != "complaints" and field.name != "anamnesis_disease" and field.name != "anamnesis_life" and field.name != "status_praesens" and field.name != "gynecological_anamnesis" and field.name != "diagnosis_reasoning" and field.name != "treatment_plan" and field.name != "recommendations" %}
-                        <div class="col-md-6">
-                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.errors %}
-                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                {% endfor %}
+    <h2 class="h5 mb-3">Диагнозы и итог приема</h2>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Предварительный диагноз по МКБ-10</label>
+            {{ form.preliminary_icd10 }}
+
+            <div class="icd10-search-block" data-target="id_record-preliminary_icd10">
+                <input
+                    type="text"
+                    class="form-control icd10-search-input"
+                    placeholder="Введите код, название или ключевые слова"
+                    autocomplete="off"
+                >
+                <div class="form-text">Например: A00, холера, пневмония, гипертензия</div>
+                <div class="icd10-selected mt-2 text-muted small"></div>
+                <div class="list-group icd10-results mt-2"></div>
             </div>
+
+            {% if form.preliminary_icd10.errors %}
+                <div class="text-danger small mt-1">{{ form.preliminary_icd10.errors|striptags }}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Клинический диагноз по МКБ-10</label>
+            {{ form.clinical_icd10 }}
+
+            <div class="icd10-search-block" data-target="id_record-clinical_icd10">
+                <input
+                    type="text"
+                    class="form-control icd10-search-input"
+                    placeholder="Введите код, название или ключевые слова"
+                    autocomplete="off"
+                >
+                <div class="form-text">Например: I10, J18.9, гастрит, диабет</div>
+                <div class="icd10-selected mt-2 text-muted small"></div>
+                <div class="list-group icd10-results mt-2"></div>
+            </div>
+
+            {% if form.clinical_icd10.errors %}
+                <div class="text-danger small mt-1">{{ form.clinical_icd10.errors|striptags }}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-12">
+            <button type="button" class="btn btn-outline-primary" id="generate-diagnosis-reasoning-btn">
+                Сформировать обоснование диагноза
+            </button>
+            <div class="form-text">
+                Текст формируется на основе заполненных полей карты и выбранных диагнозов МКБ-10.
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label" for="{{ form.outcome.id_for_label }}">
+                {{ form.outcome.label }}
+            </label>
+            {{ form.outcome }}
+            {% if form.outcome.errors %}
+                <div class="text-danger small mt-1">{{ form.outcome.errors|striptags }}</div>
+            {% endif %}
         </div>
     </div>
 </div>
+
+
+
+
+    </div>
+</div>
+
+
+<div class="medical-dictionary-card mt-3">
+    <h2 class="h5 mb-3">Лабораторные и инструментальные исследования</h2>
+
+    {{ study_formset.management_form }}
+
+    {% if study_formset.non_form_errors %}
+        <div class="alert alert-danger mb-3">
+            {{ study_formset.non_form_errors }}
+        </div>
+    {% endif %}
+
+    <div id="study-formset">
+        {% for study_form in study_formset %}
+            <div class="study-result-row border rounded p-3 mb-3">
+                {% for hidden in study_form.hidden_fields %}
+                    {{ hidden }}
+                {% endfor %}
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="{{ study_form.study.id_for_label }}">Исследование</label>
+                        {{ study_form.study }}
+                        {% if study_form.study.errors %}
+                            <div class="text-danger small mt-1">{{ study_form.study.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label" for="{{ study_form.result_value.id_for_label }}">Результат</label>
+                        {{ study_form.result_value }}
+                        {% if study_form.result_value.errors %}
+                            <div class="text-danger small mt-1">{{ study_form.result_value.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label d-block">В обоснование</label>
+                        <div class="form-check mt-2">
+                            {{ study_form.include_in_reasoning }}
+                            <label class="form-check-label" for="{{ study_form.include_in_reasoning.id_for_label }}">
+                                Учитывать
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-2">
+                        {% if study_form.DELETE %}
+                            <label class="form-label d-block">Удалить</label>
+                            <div class="form-check mt-2">
+                                {{ study_form.DELETE }}
+                                <label class="form-check-label" for="{{ study_form.DELETE.id_for_label }}">
+                                    Удалить
+                                </label>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label" for="{{ study_form.conclusion.id_for_label }}">Заключение</label>
+                        {{ study_form.conclusion }}
+                        {% if study_form.conclusion.errors %}
+                            <div class="text-danger small mt-1">{{ study_form.conclusion.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
 
 <div class="medical-dictionary-card mt-3" id="specialist-referral-block">
     <h2 class="h5 mb-3">Направление к другому специалисту</h2>
@@ -258,14 +399,39 @@
         position: static;
     }
 }
+
+.icd10-search-block {
+    position: relative;
+}
+
+.icd10-results {
+    max-height: 260px;
+    overflow-y: auto;
+    border-radius: 6px;
+}
+
+.icd10-results .list-group-item {
+    cursor: pointer;
+}
+
+.icd10-results .list-group-item:hover {
+    background: #f8f9fa;
+}
+
+.icd10-selected {
+    min-height: 20px;
+}
+
+
 </style>
 
 
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     if (!window.Quill) {
-        console.error("Quill не загрузился. Проверьте подключение к интернету или CDN.");
+        console.error("Quill не загрузился.");
         return;
     }
 
@@ -281,12 +447,15 @@ document.addEventListener("DOMContentLoaded", function () {
         ["clean"]
     ];
 
+    const quillEditors = [];
+
     document.querySelectorAll(".consultation-form textarea").forEach(function (textarea) {
         if (textarea.classList.contains("quill-source")) {
             return;
         }
 
         textarea.classList.add("quill-source");
+        textarea.removeAttribute("required");
         textarea.style.display = "none";
 
         const wrapper = document.createElement("div");
@@ -306,12 +475,21 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
 
-        const form = textarea.closest("form");
-        form.addEventListener("submit", function () {
-            const plainText = quill.getText().trim();
-            textarea.value = plainText ? quill.root.innerHTML : "";
+        quillEditors.push({
+            textarea: textarea,
+            quill: quill
         });
     });
+
+    const consultationForm = document.querySelector(".consultation-form");
+    if (consultationForm) {
+        consultationForm.addEventListener("submit", function () {
+            quillEditors.forEach(function (item) {
+                const plainText = item.quill.getText().trim();
+                item.textarea.value = plainText ? item.quill.root.innerHTML : "";
+            });
+        });
+    }
 
     const buttons = Array.from(document.querySelectorAll(".medical-section-button"));
     const panels = Array.from(document.querySelectorAll(".medical-field-panel"));
@@ -335,8 +513,231 @@ document.addEventListener("DOMContentLoaded", function () {
             activatePanel(button.dataset.target);
         });
     });
+
+    async function searchICD10(query) {
+        const response = await fetch(`/icd10/search/?q=${encodeURIComponent(query)}`);
+        return await response.json();
+    }
+
+    document.querySelectorAll(".icd10-search-block").forEach(function (block) {
+        const hiddenSelectId = block.dataset.target;
+        const hiddenSelect = document.getElementById(hiddenSelectId);
+        const input = block.querySelector(".icd10-search-input");
+        const resultsBox = block.querySelector(".icd10-results");
+        const selectedBox = block.querySelector(".icd10-selected");
+
+        if (!hiddenSelect || !input || !resultsBox || !selectedBox) {
+            return;
+        }
+
+        function setSelectedLabel() {
+            const selectedOption = hiddenSelect.options[hiddenSelect.selectedIndex];
+            if (selectedOption && selectedOption.value) {
+                selectedBox.textContent = "Выбрано: " + selectedOption.text;
+            } else {
+                selectedBox.textContent = "";
+            }
+        }
+
+        setSelectedLabel();
+
+        let debounceTimer = null;
+
+        input.addEventListener("input", function () {
+            const query = input.value.trim();
+            clearTimeout(debounceTimer);
+
+            if (query.length < 2) {
+                resultsBox.innerHTML = "";
+                return;
+            }
+
+            debounceTimer = setTimeout(async function () {
+                try {
+                    const data = await searchICD10(query);
+                    resultsBox.innerHTML = "";
+
+                    if (!data.results || !data.results.length) {
+                        const empty = document.createElement("div");
+                        empty.className = "list-group-item text-muted";
+                        empty.textContent = "Совпадений не найдено";
+                        resultsBox.appendChild(empty);
+                        return;
+                    }
+
+                    data.results.forEach(function (item) {
+                        const optionExists = Array.from(hiddenSelect.options).some(function (opt) {
+                            return String(opt.value) === String(item.id);
+                        });
+
+                        if (!optionExists) {
+                            const option = document.createElement("option");
+                            option.value = item.id;
+                            option.text = item.label;
+                            hiddenSelect.appendChild(option);
+                        }
+
+                        const btn = document.createElement("button");
+                        btn.type = "button";
+                        btn.className = "list-group-item list-group-item-action";
+                        btn.textContent = item.label;
+
+                        btn.addEventListener("click", function () {
+                            hiddenSelect.value = String(item.id);
+                            input.value = item.label;
+                            resultsBox.innerHTML = "";
+                            setSelectedLabel();
+                        });
+
+                        resultsBox.appendChild(btn);
+                    });
+                } catch (error) {
+                    console.error("Ошибка поиска МКБ-10:", error);
+                }
+            }, 250);
+        });
+    });
+
+        function stripHtml(html) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html || "";
+        return (tmp.textContent || tmp.innerText || "").trim();
+    }
+
+    function getEditorValue(textareaId) {
+        const textarea = document.getElementById(textareaId);
+        if (!textarea) {
+            return "";
+        }
+
+        const editor = textarea.parentNode.querySelector(".word-editor-wrapper .ql-editor");
+        if (editor) {
+            return stripHtml(editor.innerHTML);
+        }
+
+        return stripHtml(textarea.value);
+    }
+
+    function getSelectedText(selectId) {
+        const select = document.getElementById(selectId);
+        if (!select) {
+            return "";
+        }
+
+        const selectedOption = select.options[select.selectedIndex];
+        if (!selectedOption || !selectedOption.value) {
+            return "";
+        }
+
+        return selectedOption.text.trim();
+    }
+
+    function collectStudyTexts() {
+        const studyTexts = [];
+
+        document.querySelectorAll(".study-result-row").forEach(function (row) {
+            const includeCheckbox = row.querySelector('input[type="checkbox"][name$="include_in_reasoning"]');
+            const deleteCheckbox = row.querySelector('input[type="checkbox"][name$="DELETE"]');
+            const studySelect = row.querySelector('select[name$="study"]');
+            const resultInput = row.querySelector('input[name$="result_value"]');
+            const conclusionInput = row.querySelector('textarea[name$="conclusion"]');
+
+            const includeInReasoning = includeCheckbox ? includeCheckbox.checked : false;
+            const isDeleted = deleteCheckbox ? deleteCheckbox.checked : false;
+
+            if (!includeInReasoning || isDeleted || !studySelect) {
+                return;
+            }
+
+            const selectedStudy = studySelect.options[studySelect.selectedIndex];
+            const studyName = selectedStudy && selectedStudy.value ? selectedStudy.text.trim() : "";
+            const resultValue = resultInput ? resultInput.value.trim() : "";
+            const conclusionText = conclusionInput ? conclusionInput.value.trim() : "";
+
+            if (studyName && resultValue) {
+                studyTexts.push(studyName + ": " + resultValue);
+            }
+
+            if (studyName && conclusionText) {
+                studyTexts.push(studyName + ", заключение: " + conclusionText);
+            }
+        });
+
+        return studyTexts;
+    }
+
+    const generateReasoningButton = document.getElementById("generate-diagnosis-reasoning-btn");
+
+    if (generateReasoningButton) {
+        generateReasoningButton.addEventListener("click", function () {
+            const complaints = getEditorValue("id_record-complaints");
+            const anamnesisDisease = getEditorValue("id_record-anamnesis_disease");
+            const anamnesisLife = getEditorValue("id_record-anamnesis_life");
+            const statusPraesens = getEditorValue("id_record-status_praesens");
+            const gynecologicalAnamnesis = getEditorValue("id_record-gynecological_anamnesis");
+
+            const preliminaryDiagnosis = getSelectedText("id_record-preliminary_icd10");
+            const clinicalDiagnosis = getSelectedText("id_record-clinical_icd10");
+            const studyTexts = collectStudyTexts();
+
+            const parts = [];
+
+            if (complaints) {
+                parts.push("жалоб пациента: " + complaints);
+            }
+            if (anamnesisDisease) {
+                parts.push("данных анамнеза заболевания: " + anamnesisDisease);
+            }
+            if (anamnesisLife) {
+                parts.push("анамнеза жизни: " + anamnesisLife);
+            }
+            if (statusPraesens) {
+                parts.push("объективного статуса: " + statusPraesens);
+            }
+            if (gynecologicalAnamnesis) {
+                parts.push("гинекологического анамнеза: " + gynecologicalAnamnesis);
+            }
+            if (preliminaryDiagnosis) {
+                parts.push("предварительного диагноза по МКБ-10: " + preliminaryDiagnosis);
+            }
+            if (clinicalDiagnosis) {
+                parts.push("клинического диагноза по МКБ-10: " + clinicalDiagnosis);
+            }
+            if (studyTexts.length > 0) {
+                parts.push("результатов лабораторных и инструментальных исследований: " + studyTexts.join("; "));
+            }
+
+            let generatedText = "";
+
+            if (parts.length > 0) {
+                generatedText = "На основании " + parts.join(", ") + " обоснован предварительный и клинический диагноз.";
+            } else {
+                generatedText = "Недостаточно данных для автоматического формирования обоснования диагноза.";
+            }
+
+            const reasoningTextarea = document.getElementById("id_record-diagnosis_reasoning");
+            if (!reasoningTextarea) {
+                console.error("Не найдено поле diagnosis_reasoning");
+                return;
+            }
+
+            reasoningTextarea.value = "<p>" + generatedText + "</p>";
+
+            const reasoningEditor = reasoningTextarea.parentNode.querySelector(".word-editor-wrapper .ql-editor");
+            if (reasoningEditor) {
+                reasoningEditor.innerHTML = "<p>" + generatedText + "</p>";
+            }
+
+            const reasoningButton = document.querySelector('[data-target="field-panel-diagnosis_reasoning"]');
+            if (reasoningButton) {
+                reasoningButton.click();
+            }
+        });
+    }
+
 });
 </script>
+
 
 
 {% endblock %}

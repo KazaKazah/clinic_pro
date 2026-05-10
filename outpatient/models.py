@@ -159,9 +159,9 @@ class Appointment(models.Model):
 
 class ICD10Diagnosis(models.Model):
     code = models.CharField("Код МКБ-10", max_length=20, unique=True)
-    name = models.CharField("Название диагноза", max_length=500)
-    external_url = models.URLField("Ссылка на классификатор", blank=True)
+    name = models.CharField("Наименование", max_length=500)
     is_active = models.BooleanField("Активен", default=True)
+    external_url = models.URLField("Ссылка на источник", blank=True)
 
     class Meta:
         ordering = ["code"]
@@ -170,6 +170,11 @@ class ICD10Diagnosis(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    @property
+    def is_group(self):
+        return "-" in self.code
+
 
 
 class MedicalRecord(models.Model):
@@ -290,3 +295,58 @@ class SpecialistReferral(models.Model):
     def __str__(self):
         return f"{self.patient} -> {self.target_doctor}"
 
+
+class DiagnosticStudyCatalog(models.Model):
+    STUDY_KIND_CHOICES = [
+        ("lab", "Лабораторное"),
+        ("instrumental", "Инструментальное"),
+    ]
+
+    name = models.CharField("Наименование исследования", max_length=255)
+    kind = models.CharField("Тип исследования", max_length=20, choices=STUDY_KIND_CHOICES)
+    unit = models.CharField("Единица измерения", max_length=50, blank=True)
+    reference_range = models.CharField("Референсные значения", max_length=255, blank=True)
+    is_active = models.BooleanField("Активно", default=True)
+
+    class Meta:
+        ordering = ["kind", "name"]
+        verbose_name = "Справочник исследований"
+        verbose_name_plural = "Справочник исследований"
+
+    def __str__(self):
+        return self.name
+
+
+class DiagnosticStudyResult(models.Model):
+    appointment = models.ForeignKey(
+        Appointment,
+        on_delete=models.CASCADE,
+        related_name="study_results",
+        verbose_name="Прием",
+    )
+    study = models.ForeignKey(
+        DiagnosticStudyCatalog,
+        on_delete=models.PROTECT,
+        verbose_name="Исследование",
+    )
+    result_value = models.CharField("Результат", max_length=255, blank=True)
+    conclusion = models.TextField("Заключение", blank=True)
+    include_in_reasoning = models.BooleanField("Включать в обоснование", default=True)
+    performed_at = models.DateTimeField("Дата выполнения", null=True, blank=True)
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="performed_study_results",
+        verbose_name="Кто выполнил",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+        verbose_name = "Результат исследования"
+        verbose_name_plural = "Результаты исследований"
+
+    def __str__(self):
+        return f"{self.study} - {self.result_value or 'без результата'}"

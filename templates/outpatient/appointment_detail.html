@@ -157,51 +157,63 @@
         </section>
     </div>
 
-    {% if appointment.medical_record %}
-        <div class="col-12">
-            <section class="info-card">
-                <h2 class="h5 mb-3">Медицинская запись</h2>
 
-                <div class="info-row">
-                    <div class="info-label">Жалобы</div>
-                    <div class="info-value rich-output">{{ appointment.medical_record.complaints|safe }}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Предварительный диагноз</div>
-                    <div class="info-value">
-                        {% if appointment.medical_record.preliminary_icd10 %}
-                            {{ appointment.medical_record.preliminary_icd10.code }} — {{ appointment.medical_record.preliminary_icd10.name }}
-                        {% else %}
-                            Не указан
-                        {% endif %}
+    <div class="mt-3 pt-3 border-top">
+        <form method="post" action="{% url 'appointment_payment_status_update_page' appointment.id %}" class="row g-3 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-4">
+                <label class="form-label" for="{{ payment_status_form.payment_status.id_for_label }}">
+                    {{ payment_status_form.payment_status.label }}
+                </label>
+                {{ payment_status_form.payment_status }}
+                {% if payment_status_form.payment_status.errors %}
+                    <div class="text-danger small mt-1">{{ payment_status_form.payment_status.errors|striptags }}</div>
+                {% endif %}
+            </div>
+
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-outline-primary">
+                    Обновить оплату
+                </button>
+            </div>
+        </form>
+    </div>
+
+
+   {% if appointment.study_results.all %}
+    <hr>
+    <h3 class="h6 mb-3">Лабораторные и инструментальные исследования</h3>
+
+    {% for study_result in appointment.study_results.all %}
+        <div class="info-row">
+            <div class="info-label">{{ study_result.study.name }}</div>
+            <div class="info-value">
+                {% if study_result.result_value %}
+                    <div><strong>Результат:</strong> {{ study_result.result_value }}</div>
+                {% endif %}
+
+                {% if study_result.conclusion %}
+                    <div class="rich-output mt-1">
+                        <strong>Заключение:</strong> {{ study_result.conclusion|linebreaksbr }}
                     </div>
+                {% endif %}
+
+                <div class="text-muted small mt-1">
+                    {% if study_result.study.get_kind_display %}
+                        {{ study_result.study.get_kind_display }}
+                    {% endif %}
+                    {% if study_result.performed_at %}
+                        · {{ study_result.performed_at|date:"d.m.Y H:i" }}
+                    {% endif %}
+                    {% if study_result.include_in_reasoning %}
+                        · включено в обоснование
+                    {% endif %}
                 </div>
-                <div class="info-row">
-                    <div class="info-label">Клинический диагноз</div>
-                    <div class="info-value">
-                        {% if appointment.medical_record.clinical_icd10 %}
-                            {{ appointment.medical_record.clinical_icd10.code }} — {{ appointment.medical_record.clinical_icd10.name }}
-                        {% else %}
-                            Не указан
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">План лечения</div>
-                    <div class="info-value rich-output">{{ appointment.medical_record.treatment_plan|safe|default:"Не указан" }}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Рекомендации</div>
-                    <div class="info-value rich-output">{{ appointment.medical_record.recommendations|safe|default:"Не указаны" }}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Итог приема</div>
-                    <div class="info-value">{{ appointment.medical_record.get_outcome_display }}</div>
-                </div>
-            </section>
+            </div>
         </div>
-    {% endif %}
-</div>
+    {% endfor %}
+{% endif %}
+
 
 <style>
 .info-card {
