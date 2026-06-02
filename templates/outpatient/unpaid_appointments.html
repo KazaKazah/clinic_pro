@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Неоплаченные приемы{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Неоплаченные приемы</h1>
+        <div class="text-muted">Приемы без оплаты или с частичной оплатой.</div>
+    </div>
+    <a class="btn btn-primary" href="{% url 'patient_search_page' %}">Новое обращение</a>
+</div>
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead>
+        <tr>
+            <th>Дата и время</th>
+            <th>Пациент</th>
+            <th>Врач</th>
+            <th>Услуга</th>
+            <th>Сумма</th>
+            <th>Оплата</th>
+            <th>Статус приема</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for appointment in appointments %}
+            <tr>
+                <td class="text-nowrap">
+                    <strong>{{ appointment.appointment_date|date:"d.m.Y" }}</strong>
+                    <div class="text-muted small">{{ appointment.appointment_time|time:"H:i" }}</div>
+                </td>
+                <td>
+                    <div class="fw-semibold">{{ appointment.patient.full_name }}</div>
+                    <div class="text-muted small">ИИН {{ appointment.patient.iin }}</div>
+                </td>
+                <td>
+                    {{ appointment.doctor.full_name }}
+                    <div class="text-muted small">{{ appointment.doctor.specialty.name }}</div>
+                </td>
+                <td>{{ appointment.service.name }}</td>
+                <td class="text-nowrap">
+                    {% if appointment.payment %}
+                        {{ appointment.payment.amount }} тг
+                    {% else %}
+                        {{ appointment.service.price }} тг
+                    {% endif %}
+                </td>
+                <td>
+                    {% if appointment.payment %}
+                        <span class="badge text-bg-warning">{{ appointment.payment.get_status_display }}</span>
+                    {% else %}
+                        <span class="badge text-bg-danger">Нет оплаты</span>
+                    {% endif %}
+                </td>
+                <td>{{ appointment.get_status_display }}</td>
+                <td class="text-end">
+                    <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_detail_page' appointment.id %}">
+                        Открыть оплату
+                    </a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td class="text-muted py-4" colspan="8">Неоплаченных приемов нет.</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

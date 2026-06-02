@@ -10,6 +10,7 @@
             {{ appointment.appointment_date|date:"d.m.Y" }} · {{ appointment.appointment_time|time:"H:i" }}
         </div>
     </div>
+    <div class="d-flex gap-2">
         {% if appointment.status == "reserved" %}
             <a class="btn btn-success" href="{% url 'activate_reservation_page' appointment.id %}">
                 Пациент пришел
@@ -18,10 +19,24 @@
                 Отменить бронь
             </a>
         {% endif %}
-    <div class="d-flex gap-2">
-        {% if appointment.status != "reserved" and appointment.status != "cancelled" %}
+
+        {% if can_consult and appointment.status != "reserved" and appointment.status != "cancelled" %}
             <a class="btn btn-primary" href="{% url 'appointment_consultation_page' appointment.id %}">
                 {% if appointment.medical_record %}Открыть медицинскую запись{% else %}Начать прием{% endif %}
+            </a>
+        {% endif %}
+
+        <a class="btn btn-outline-secondary" href="{% url 'patient_history_page' appointment.patient.id %}">
+            История пациента
+        </a>
+        {% if appointment.medical_record %}
+            {% if can_open_inpatient_record %}
+                <a class="btn btn-success" href="{% url 'inpatient_record_page' appointment.id %}">
+                    Стационарная карта
+                </a>
+            {% endif %}
+            <a class="btn btn-outline-secondary" href="{% url 'appointment_print_page' appointment.id %}">
+                Печать
             </a>
         {% endif %}
         <a class="btn btn-outline-primary" href="{% url 'dashboard_page' %}">На панель</a>
@@ -36,7 +51,7 @@
                 {{ appointment.created_from_referral.source_appointment.doctor.full_name }}
             </div>
             <div class="referral-text">
-                {{ appointment.created_from_referral.reason|safe }}
+                {{ appointment.created_from_referral.reason|linebreaksbr }}
             </div>
         </div>
         <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_detail_page' appointment.created_from_referral.source_appointment.id %}">
@@ -79,7 +94,7 @@
             </div>
             <div class="info-row">
                 <div class="info-label">Причина обращения</div>
-                <div class="info-value rich-output">{{ appointment.visit.reason|safe }}</div>
+                <div class="info-value rich-output">{{ appointment.visit.reason|linebreaksbr }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Назначенный врач</div>
@@ -98,7 +113,7 @@
                 </div>
                 <div class="info-row">
                     <div class="info-label">Причина направления</div>
-                    <div class="info-value rich-output">{{ appointment.created_from_referral.reason|safe }}</div>
+                    <div class="info-value rich-output">{{ appointment.created_from_referral.reason|linebreaksbr }}</div>
                 </div>
                 <div class="info-row">
                     <div class="info-label">Исходный прием</div>
@@ -154,66 +169,117 @@
                     </div>
                 </div>
             </div>
+
+            {% if can_update_payment %}
+            <div class="payment-update-panel mt-3">
+                <div class="payment-update-head">
+                    <div>
+                        <div class="payment-update-title">Управление оплатой</div>
+                        <div class="payment-update-subtitle">
+                            Обновите статус оплаты по приему без перехода в админку.
+                        </div>
+                    </div>
+                </div>
+
+                <form method="post" action="{% url 'appointment_payment_status_update_page' appointment.id %}" class="payment-update-form">
+                    {% csrf_token %}
+
+                    <div class="payment-update-field">
+                        <label class="form-label mb-1" for="{{ payment_status_form.payment_status.id_for_label }}">
+                            {{ payment_status_form.payment_status.label }}
+                        </label>
+                        {{ payment_status_form.payment_status }}
+                        {% if payment_status_form.payment_status.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ payment_status_form.payment_status.errors|striptags }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="payment-update-actions">
+                        <button type="submit" class="btn btn-primary">
+                            Обновить оплату
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
         </section>
     </div>
 
+    {% if appointment.medical_record %}
+        <div class="col-12">
+            <section class="info-card">
+                <h2 class="h5 mb-3">Медицинская запись</h2>
 
-    <div class="mt-3 pt-3 border-top">
-        <form method="post" action="{% url 'appointment_payment_status_update_page' appointment.id %}" class="row g-3 align-items-end">
-            {% csrf_token %}
-            <div class="col-md-4">
-                <label class="form-label" for="{{ payment_status_form.payment_status.id_for_label }}">
-                    {{ payment_status_form.payment_status.label }}
-                </label>
-                {{ payment_status_form.payment_status }}
-                {% if payment_status_form.payment_status.errors %}
-                    <div class="text-danger small mt-1">{{ payment_status_form.payment_status.errors|striptags }}</div>
-                {% endif %}
-            </div>
-
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-outline-primary">
-                    Обновить оплату
-                </button>
-            </div>
-        </form>
-    </div>
-
-
-   {% if appointment.study_results.all %}
-    <hr>
-    <h3 class="h6 mb-3">Лабораторные и инструментальные исследования</h3>
-
-    {% for study_result in appointment.study_results.all %}
-        <div class="info-row">
-            <div class="info-label">{{ study_result.study.name }}</div>
-            <div class="info-value">
-                {% if study_result.result_value %}
-                    <div><strong>Результат:</strong> {{ study_result.result_value }}</div>
-                {% endif %}
-
-                {% if study_result.conclusion %}
-                    <div class="rich-output mt-1">
-                        <strong>Заключение:</strong> {{ study_result.conclusion|linebreaksbr }}
+                <div class="info-row">
+                    <div class="info-label">Жалобы</div>
+                    <div class="info-value rich-output">{{ appointment.medical_record.complaints|linebreaksbr }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Диагноз</div>
+                    <div class="info-value">
+                        {% if appointment.medical_record.clinical_icd10 %}
+                            {{ appointment.medical_record.clinical_icd10.code }} —
+                            {{ appointment.medical_record.clinical_icd10.name }}
+                        {% elif appointment.medical_record.preliminary_icd10 %}
+                            {{ appointment.medical_record.preliminary_icd10.code }} —
+                            {{ appointment.medical_record.preliminary_icd10.name }}
+                        {% else %}
+                            Не указан
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Итог приема</div>
+                    <div class="info-value">{{ appointment.medical_record.get_outcome_display }}</div>
+                </div>
+                {% if appointment.medical_record.recommendations %}
+                    <div class="info-row">
+                        <div class="info-label">Рекомендации</div>
+                        <div class="info-value rich-output">{{ appointment.medical_record.recommendations|linebreaksbr }}</div>
                     </div>
                 {% endif %}
-
-                <div class="text-muted small mt-1">
-                    {% if study_result.study.get_kind_display %}
-                        {{ study_result.study.get_kind_display }}
-                    {% endif %}
-                    {% if study_result.performed_at %}
-                        · {{ study_result.performed_at|date:"d.m.Y H:i" }}
-                    {% endif %}
-                    {% if study_result.include_in_reasoning %}
-                        · включено в обоснование
-                    {% endif %}
-                </div>
-            </div>
+            </section>
         </div>
-    {% endfor %}
-{% endif %}
+    {% endif %}
 
+    {% if appointment.study_results.all %}
+        <div class="col-12">
+            <section class="info-card">
+                <h2 class="h5 mb-3">Лабораторные и инструментальные исследования</h2>
+
+                {% for study_result in appointment.study_results.all %}
+                    <div class="info-row">
+                        <div class="info-label">{{ study_result.study.name }}</div>
+                        <div class="info-value">
+                            {% if study_result.result_value %}
+                                <div><strong>Результат:</strong> {{ study_result.result_value }}</div>
+                            {% endif %}
+
+                            {% if study_result.conclusion %}
+                                <div class="rich-output mt-1">
+                                    <strong>Заключение:</strong> {{ study_result.conclusion|linebreaksbr }}
+                                </div>
+                            {% endif %}
+
+                            <div class="text-muted small mt-1">
+                                {{ study_result.study.get_kind_display }}
+                                {% if study_result.performed_at %}
+                                    · {{ study_result.performed_at|date:"d.m.Y H:i" }}
+                                {% endif %}
+                                {% if study_result.include_in_reasoning %}
+                                    · включено в обоснование
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </section>
+        </div>
+    {% endif %}
+
+</div>
 
 <style>
 .info-card {
@@ -228,7 +294,7 @@
     display: grid;
     grid-template-columns: 190px minmax(0, 1fr);
     gap: 14px;
-    padding: 8px 0;
+    padding: 10px 0;
     border-bottom: 1px solid #f1f3f5;
 }
 
@@ -305,6 +371,49 @@
     margin: 0;
 }
 
+.payment-update-panel {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e9ecef;
+}
+
+.payment-update-head {
+    margin-bottom: 12px;
+}
+
+.payment-update-title {
+    font-weight: 700;
+    color: #212529;
+}
+
+.payment-update-subtitle {
+    color: #6c757d;
+    font-size: 14px;
+    margin-top: 2px;
+}
+
+.payment-update-form {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.payment-update-field {
+    min-width: 0;
+}
+
+.payment-update-actions {
+    display: flex;
+    align-items: end;
+}
+
+.study-group-title {
+    font-weight: 700;
+    margin: 12px 0 8px;
+    color: #212529;
+}
+
 @media (max-width: 768px) {
     .info-row {
         grid-template-columns: 1fr;
@@ -315,11 +424,10 @@
         align-items: flex-start;
         flex-direction: column;
     }
-}
 
-.calendar-appointment.status-reserved {
-    border-left-color: #ffc107;
-    background: #fffdf3;
+    .payment-update-form {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 {% endblock %}

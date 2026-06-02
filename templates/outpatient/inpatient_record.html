@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Стационарная карта{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Стационарная карта</h1>
+        <div class="text-muted">
+            {{ appointment.patient.full_name }} · ИИН {{ appointment.patient.iin }} · прием #{{ appointment.id }}
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{% url 'appointment_detail_page' appointment.id %}">Карточка приема</a>
+        <button class="btn btn-outline-primary" type="button" onclick="window.print()">Печать</button>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <section class="inpatient-card h-100">
+            <h2 class="h5 mb-3">Данные приема-основания</h2>
+            <div class="info-row">
+                <div class="info-label">Дата приема</div>
+                <div>{{ appointment.appointment_date|date:"d.m.Y" }} {{ appointment.appointment_time|time:"H:i" }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Врач</div>
+                <div>{{ appointment.doctor.full_name }}, {{ appointment.doctor.specialty.name }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Услуга</div>
+                <div>{{ appointment.service.name }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Итог</div>
+                <div>{{ medical_record.get_outcome_display }}</div>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-lg-6">
+        <section class="inpatient-card h-100">
+            <h2 class="h5 mb-3">Пациент</h2>
+            <div class="info-row">
+                <div class="info-label">ФИО</div>
+                <div>{{ appointment.patient.full_name }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Телефон</div>
+                <div>{{ appointment.patient.phone }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Адрес</div>
+                <div>{{ appointment.patient.address|default:"Не указан" }}</div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<form method="post" class="inpatient-card">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label" for="{{ form.admission_date.id_for_label }}">{{ form.admission_date.label }}</label>
+            {{ form.admission_date }}
+            {% if form.admission_date.errors %}<div class="text-danger small">{{ form.admission_date.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+            {{ form.status }}
+            {% if form.status.errors %}<div class="text-danger small">{{ form.status.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="{{ form.department.id_for_label }}">{{ form.department.label }}</label>
+            {{ form.department }}
+            {% if form.department.errors %}<div class="text-danger small">{{ form.department.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="{{ form.ward.id_for_label }}">{{ form.ward.label }}</label>
+            {{ form.ward }}
+            {% if form.ward.errors %}<div class="text-danger small">{{ form.ward.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="col-md-1">
+            <label class="form-label" for="{{ form.bed.id_for_label }}">{{ form.bed.label }}</label>
+            {{ form.bed }}
+            {% if form.bed.errors %}<div class="text-danger small">{{ form.bed.errors|striptags }}</div>{% endif %}
+        </div>
+
+        <div class="col-12">
+            <h2 class="h5 mt-3 mb-0">Поступление</h2>
+        </div>
+
+        {% for field in form %}
+            {% if field.name != "admission_date" and field.name != "status" and field.name != "department" and field.name != "ward" and field.name != "bed" %}
+                <div class="{% if field.name == 'diagnosis' %}col-md-6{% else %}col-12{% endif %}">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="d-flex gap-2 mt-4">
+        <button class="btn btn-primary" type="submit">Сохранить карту</button>
+        <a class="btn btn-outline-secondary" href="{% url 'appointment_detail_page' appointment.id %}">Назад</a>
+    </div>
+</form>
+
+<style>
+.inpatient-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+}
+
+.info-row {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.info-row:last-child {
+    border-bottom: 0;
+}
+
+.info-label {
+    color: #495057;
+    font-weight: 700;
+}
+
+@media print {
+    nav,
+    .btn,
+    .alert {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+    }
+
+    main {
+        max-width: none !important;
+        padding: 0 !important;
+    }
+
+    .inpatient-card {
+        box-shadow: none;
+        page-break-inside: avoid;
+    }
+}
+</style>
+{% endblock %}

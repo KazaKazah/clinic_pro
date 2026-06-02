@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Стационар{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <div class="text-uppercase fw-bold small text-primary">Стационар</div>
+        <h1 class="h3 mb-1">Стационарные больные</h1>
+        <div class="text-muted">Отдельный контур ведения госпитализированных пациентов.</div>
+    </div>
+    <a class="btn btn-outline-primary" href="{% url 'dashboard_page' %}">Регистратура</a>
+</div>
+
+<div class="inpatient-summary mb-3">
+    <a class="summary-item {% if status == 'active' %}active{% endif %}" href="?status=active">
+        <span>{{ counts.active }}</span>
+        Активные
+    </a>
+    <a class="summary-item {% if status == 'draft' %}active{% endif %}" href="?status=draft">
+        <span>{{ counts.draft }}</span>
+        Черновики
+    </a>
+    <a class="summary-item {% if status == 'admitted' %}active{% endif %}" href="?status=admitted">
+        <span>{{ counts.admitted }}</span>
+        Госпитализированы
+    </a>
+    <a class="summary-item {% if status == 'discharged' %}active{% endif %}" href="?status=discharged">
+        <span>{{ counts.discharged }}</span>
+        Выписаны
+    </a>
+    <a class="summary-item {% if status == 'all' %}active{% endif %}" href="?status=all">
+        <span>{{ counts.all }}</span>
+        Все карты
+    </a>
+</div>
+
+<section class="inpatient-panel">
+    <form class="inpatient-toolbar mb-3" method="get">
+        <input type="hidden" name="status" value="{{ status }}">
+        <div>
+            <label class="form-label" for="inpatient-search">Поиск</label>
+            <input
+                class="form-control"
+                id="inpatient-search"
+                name="q"
+                value="{{ query }}"
+                placeholder="ФИО, ИИН, отделение, палата, диагноз"
+            >
+        </div>
+        <div class="toolbar-actions">
+            <button class="btn btn-primary" type="submit">Найти</button>
+            <a class="btn btn-outline-secondary" href="{% url 'inpatient_records_page' %}?status={{ status }}">Сбросить</a>
+        </div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 inpatient-table">
+            <thead>
+            <tr>
+                <th>Пациент</th>
+                <th>Поступление</th>
+                <th>Размещение</th>
+                <th>Диагноз</th>
+                <th>Врач</th>
+                <th>Статус</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for record in records %}
+                <tr>
+                    <td>
+                        <div class="fw-semibold">{{ record.patient.full_name }}</div>
+                        <div class="text-muted small">ИИН {{ record.patient.iin }}</div>
+                    </td>
+                    <td class="text-nowrap">
+                        <strong>{{ record.admission_date|date:"d.m.Y" }}</strong>
+                        <div class="text-muted small">прием #{{ record.source_appointment.id }}</div>
+                    </td>
+                    <td>
+                        <div>{{ record.department|default:"Отделение не указано" }}</div>
+                        <div class="text-muted small">
+                            {% if record.ward %}палата {{ record.ward }}{% else %}палата не указана{% endif %}
+                            {% if record.bed %} · койка {{ record.bed }}{% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if record.diagnosis %}
+                            <div>{{ record.diagnosis.code }}</div>
+                            <div class="text-muted small">{{ record.diagnosis.name }}</div>
+                        {% elif record.diagnosis_text %}
+                            {{ record.diagnosis_text|truncatechars:90 }}
+                        {% else %}
+                            <span class="text-muted">Не указан</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {{ record.admitting_doctor.full_name }}
+                        <div class="text-muted small">{{ record.admitting_doctor.specialty.name }}</div>
+                    </td>
+                    <td>
+                        {% if record.status == "admitted" %}
+                            <span class="badge text-bg-success">{{ record.get_status_display }}</span>
+                        {% elif record.status == "draft" %}
+                            <span class="badge text-bg-primary">{{ record.get_status_display }}</span>
+                        {% elif record.status == "discharged" %}
+                            <span class="badge text-bg-secondary">{{ record.get_status_display }}</span>
+                        {% else %}
+                            <span class="badge text-bg-dark">{{ record.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a class="btn btn-outline-primary btn-sm" href="{% url 'inpatient_record_page' record.source_appointment.id %}">
+                            Открыть
+                        </a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td class="text-muted py-4" colspan="7">Стационарных карт по выбранным условиям нет.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<style>
+.inpatient-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.summary-item {
+    background: #fff;
+    border: 1px solid #d7e5e9;
+    border-radius: 8px;
+    color: #31545d;
+    padding: 12px;
+    text-decoration: none;
+}
+
+.summary-item:hover,
+.summary-item.active {
+    border-color: #168aad;
+    background: #e9f7fb;
+    color: #0f6f8e;
+}
+
+.summary-item span {
+    color: #12323a;
+    display: block;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.inpatient-panel {
+    background: #fff;
+    border: 1px solid #d7e5e9;
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(18, 50, 58, .06);
+    padding: 16px;
+}
+
+.inpatient-toolbar {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.inpatient-table thead th {
+    background: #f4fafb;
+    border-bottom: 1px solid #d7e5e9;
+    color: #31545d;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.inpatient-table tbody td {
+    border-color: #edf3f5;
+}
+
+@media (max-width: 992px) {
+    .inpatient-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .inpatient-toolbar {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 576px) {
+    .inpatient-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .toolbar-actions {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}

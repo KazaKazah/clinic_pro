@@ -8,10 +8,13 @@
 
 
 </head>
-<body class="bg-light">
-<nav class="navbar navbar-expand-lg bg-white border-bottom">
+<body class="app-shell">
+<nav class="navbar navbar-expand-lg clinic-navbar">
     <div class="container">
-        <a class="navbar-brand fw-semibold" href="{% url 'dashboard_page' %}">Клиника</a>
+        <a class="navbar-brand fw-semibold clinic-brand" href="{% url 'dashboard_page' %}">
+            <span class="brand-mark">+</span>
+            Медицинский центр
+        </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -19,7 +22,9 @@
             <div class="navbar-nav me-auto">
                 <a class="nav-link" href="{% url 'dashboard_page' %}">Регистратура</a>
                 <a class="nav-link" href="{% url 'patient_search_page' %}">Новое обращение</a>
+                <a class="nav-link" href="{% url 'unpaid_appointments_page' %}">Неоплаченные</a>
                 <a class="nav-link" href="{% url 'doctor_queue_page' %}">Очередь врача</a>
+                <a class="nav-link" href="{% url 'inpatient_records_page' %}">Стационар</a>
                 <a class="nav-link" href="/admin/">Администрирование</a>
             </div>
             <div class="navbar-nav">
@@ -46,5 +51,76 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+<style>
+:root {
+    --clinic-ink: #12323a;
+    --clinic-muted: #60747b;
+    --clinic-primary: #168aad;
+    --clinic-primary-dark: #0f6f8e;
+    --clinic-soft: #e9f7fb;
+    --clinic-green: #2d9d78;
+    --clinic-border: #d7e5e9;
+    --clinic-surface: #ffffff;
+}
+
+.app-shell {
+    background:
+        linear-gradient(180deg, #eef8fb 0, #f7fbfc 250px, #f4f7f8 100%);
+    color: var(--clinic-ink);
+}
+
+.clinic-navbar {
+    background: rgba(255, 255, 255, .94);
+    border-bottom: 1px solid var(--clinic-border);
+    box-shadow: 0 8px 24px rgba(18, 50, 58, .06);
+}
+
+.clinic-brand {
+    color: var(--clinic-ink);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.clinic-brand:hover {
+    color: var(--clinic-primary-dark);
+}
+
+.brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--clinic-primary);
+    color: #fff;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.navbar .nav-link {
+    color: #31545d;
+    border-radius: 6px;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.navbar .nav-link:hover {
+    background: var(--clinic-soft);
+    color: var(--clinic-primary-dark);
+}
+
+.btn-primary {
+    background: var(--clinic-primary);
+    border-color: var(--clinic-primary);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background: var(--clinic-primary-dark);
+    border-color: var(--clinic-primary-dark);
+}
+</style>
 </body>
 </html>

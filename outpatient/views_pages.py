@@ -1,264 +1,119 @@
-from django import forms
-from django.forms import inlineformset_factory
+from datetime import datetime
 
-from billing.models import MedicalService, Payment
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError, transaction
+from django.db.models import Q
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+
+from billing.models import Payment
 from patients.models import Patient
 
-from .models import (
-    Appointment,
-    DiagnosticStudyCatalog,
-    DiagnosticStudyResult,
-    Doctor,
-    ICD10Diagnosis,
-    MedicalRecord,
-    PatientVisit,
-    SpecialistReferral,
-    Specialty,
-)
 from .forms import (
     AppointmentReservationForm,
     CreateVisitAppointmentForm,
     DiagnosticStudyResultFormSet,
+    InpatientRecordForm,
     MedicalRecordForm,
     PaymentStatusUpdateForm,
     SpecialistReferralForm,
 )
-from django import forms
-from billing.models import MedicalService, Payment
-from patients.models import Patient
-from datetime import datetime
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.db import IntegrityError, transaction
-from django.shortcuts import get_object_or_404, redirect, render
-from django.http import JsonResponse
-from outpatient.models import ICD10Diagnosis
-from django.db.models import Q
+from .models import Appointment, Doctor, ICD10Diagnosis, InpatientRecord, MedicalRecord, PatientVisit, SpecialistReferral
 
 
-class CreateVisitAppointmentForm(forms.Form):
-    patient = forms.ModelChoiceField(
-        label="Пациент",
-        queryset=Patient.objects.all().order_by("last_name", "first_name", "middle_name"),
-        empty_label="Выберите пациента",
-    )
-    visit_type = forms.ChoiceField(
-        label="Тип обращения",
-        choices=PatientVisit.VISIT_TYPES,
-        initial="consultation",
-    )
-    reason = forms.CharField(
-        label="Причина обращения",
-        widget=forms.Textarea(attrs={"rows": 3}),
-    )
-    doctor = forms.ModelChoiceField(
-        label="Врач",
-        queryset=Doctor.objects.filter(is_active=True).select_related("specialty").order_by("full_name"),
-        empty_label="Выберите врача",
-    )
-    service = forms.ModelChoiceField(
-        label="Услуга",
-        queryset=MedicalService.objects.filter(is_active=True).select_related("specialty").order_by("name"),
-        empty_label="Выберите услугу",
-    )
-    appointment_date = forms.DateField(
-        label="Дата приема",
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    appointment_time = forms.TimeField(
-        label="Время приема",
-        widget=forms.TimeInput(attrs={"type": "time"}),
-    )
-    payment_status = forms.ChoiceField(
-        label="Статус оплаты",
-        choices=Payment.STATUS_CHOICES,
-        initial="not_paid",
-    )
-    registrar_comment = forms.CharField(
-        label="Комментарий регистратора",
-        widget=forms.Textarea(attrs={"rows": 2}),
-        required=False,
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        for field in self.fields.values():
-            css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
-            field.widget.attrs["class"] = css_class
-
-    def clean(self):
-        cleaned_data = super().clean()
-
-        doctor = cleaned_data.get("doctor")
-        service = cleaned_data.get("service")
-        appointment_date = cleaned_data.get("appointment_date")
-        appointment_time = cleaned_data.get("appointment_time")
-
-        if doctor and service and getattr(service, "specialty_id", None) and doctor.specialty_id != service.specialty_id:
-            self.add_error("service", "Услуга не относится к специальности выбранного врача.")
-
-        if doctor and appointment_date and appointment_time:
-            duplicate_exists = Appointment.objects.filter(
-                doctor=doctor,
-                appointment_date=appointment_date,
-                appointment_time=appointment_time,
-            ).exclude(status="cancelled").exists()
-
-            if duplicate_exists:
-                self.add_error("appointment_time", "У врача уже есть запись на это время.")
-
-        return cleaned_data
-
-    def save(self, created_by):
-        patient = self.cleaned_data["patient"]
-        doctor = self.cleaned_data["doctor"]
-        service = self.cleaned_data["service"]
-
-        visit = PatientVisit.objects.create(
-            patient=patient,
-            visit_type=self.cleaned_data["visit_type"],
-            reason=self.cleaned_data["reason"],
-            status="sent_to_doctor",
-            created_by=created_by,
-        )
-
-        appointment = Appointment.objects.create(
-            visit=visit,
-            patient=patient,
-            doctor=doctor,
-            service=service,
-            appointment_date=self.cleaned_data["appointment_date"],
-            appointment_time=self.cleaned_data["appointment_time"],
-            status="waiting",
-            registrar_comment=self.cleaned_data["registrar_comment"],
-        )
-
-        Payment.objects.create(
-            appointment=appointment,
-            amount=service.price,
-            status=self.cleaned_data["payment_status"],
-        )
-
-        return appointment
+RECEPTION_ROLES = {"admin", "manager", "registrar"}
+CLINICAL_ROLES = {"admin", "manager", "doctor", "nurse"}
 
 
+def user_role(user):
+    return getattr(user, "role", "")
 
-class CreateVisitAppointmentForm(forms.Form):
-    patient = forms.ModelChoiceField(
-        label="Пациент",
-        queryset=Patient.objects.all().order_by("last_name", "first_name", "middle_name"),
-        empty_label="Выберите пациента",
-    )
-    visit_type = forms.ChoiceField(
-        label="Тип обращения",
-        choices=PatientVisit.VISIT_TYPES,
-        initial="consultation",
-    )
-    reason = forms.CharField(
-        label="Причина обращения",
-        widget=forms.Textarea(attrs={"rows": 3}),
-    )
-    doctor = forms.ModelChoiceField(
-        label="Врач",
-        queryset=Doctor.objects.filter(is_active=True).select_related("specialty").order_by("full_name"),
-        empty_label="Выберите врача",
-    )
-    service = forms.ModelChoiceField(
-        label="Услуга",
-        queryset=MedicalService.objects.filter(is_active=True).select_related("specialty").order_by("name"),
-        empty_label="Выберите услугу",
-    )
-    appointment_date = forms.DateField(
-        label="Дата приема",
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    appointment_time = forms.TimeField(
-        label="Время приема",
-        widget=forms.TimeInput(attrs={"type": "time"}),
-    )
-    payment_status = forms.ChoiceField(
-        label="Статус оплаты",
-        choices=Payment.STATUS_CHOICES,
-        initial="not_paid",
-    )
-    registrar_comment = forms.CharField(
-        label="Комментарий регистратора",
-        widget=forms.Textarea(attrs={"rows": 2}),
-        required=False,
-    )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+def user_can_manage_appointments(user):
+    return user.is_superuser or user.is_staff or user_role(user) in RECEPTION_ROLES
 
-        for field in self.fields.values():
-            css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
-            field.widget.attrs["class"] = css_class
 
-    def clean(self):
-        cleaned_data = super().clean()
+def user_can_do_clinical_work(user):
+    return user.is_superuser or user.is_staff or user_role(user) in CLINICAL_ROLES
 
-        doctor = cleaned_data.get("doctor")
-        service = cleaned_data.get("service")
-        appointment_date = cleaned_data.get("appointment_date")
-        appointment_time = cleaned_data.get("appointment_time")
 
-        if doctor and service and getattr(service, "specialty_id", None) and doctor.specialty_id != service.specialty_id:
-            self.add_error("service", "Услуга не относится к специальности выбранного врача.")
+def get_user_doctor(user):
+    return Doctor.objects.filter(user=user, is_active=True).first()
 
-        if doctor and appointment_date and appointment_time:
-            duplicate_exists = Appointment.objects.filter(
-                doctor=doctor,
-                appointment_date=appointment_date,
-                appointment_time=appointment_time,
-            ).exclude(status="cancelled").exists()
 
-            if duplicate_exists:
-                self.add_error("appointment_time", "У врача уже есть запись на это время.")
+def user_can_view_appointment(user, appointment):
+    if user_can_manage_appointments(user):
+        return True
+    doctor = get_user_doctor(user)
+    return bool(doctor and appointment.doctor_id == doctor.id)
 
-        return cleaned_data
 
-    def save(self, created_by):
-        patient = self.cleaned_data["patient"]
-        doctor = self.cleaned_data["doctor"]
-        service = self.cleaned_data["service"]
+def user_can_consult_appointment(user, appointment):
+    if not user_can_do_clinical_work(user):
+        return False
+    if user.is_superuser or user.is_staff or user_role(user) in {"admin", "manager"}:
+        return True
+    doctor = get_user_doctor(user)
+    return bool(doctor and appointment.doctor_id == doctor.id)
 
-        visit = PatientVisit.objects.create(
-            patient=patient,
-            visit_type=self.cleaned_data["visit_type"],
-            reason=self.cleaned_data["reason"],
-            status="sent_to_doctor",
-            created_by=created_by,
-        )
 
-        appointment = Appointment.objects.create(
-            visit=visit,
-            patient=patient,
-            doctor=doctor,
-            service=service,
-            appointment_date=self.cleaned_data["appointment_date"],
-            appointment_time=self.cleaned_data["appointment_time"],
-            status="waiting",
-            registrar_comment=self.cleaned_data["registrar_comment"],
-        )
+def deny_with_message(request, message="У вас нет доступа к этому действию."):
+    messages.error(request, message)
+    return redirect("dashboard_page")
 
-        Payment.objects.create(
-            appointment=appointment,
-            amount=service.price,
-            status=self.cleaned_data["payment_status"],
-        )
 
-        return appointment
+def build_study_summary(appointment):
+    rows = []
+    for result in appointment.study_results.select_related("study").all():
+        parts = [result.study.name]
+        if result.result_value:
+            parts.append(f"результат: {result.result_value}")
+        if result.conclusion:
+            parts.append(f"заключение: {result.conclusion}")
+        rows.append("; ".join(parts))
+    return "\n".join(rows)
+
+
+def inpatient_defaults_from_appointment(appointment, user):
+    record = getattr(appointment, "medical_record", None)
+    diagnosis = None
+    diagnosis_text = ""
+    if record:
+        diagnosis = record.clinical_icd10 or record.preliminary_icd10
+        if diagnosis:
+            diagnosis_text = f"{diagnosis.code} - {diagnosis.name}"
+
+    return {
+        "patient": appointment.patient,
+        "admitting_doctor": appointment.doctor,
+        "created_by": user,
+        "admission_reason": appointment.visit.reason,
+        "complaints": record.complaints if record else "",
+        "anamnesis": record.anamnesis_disease if record else "",
+        "objective_status": record.status_praesens if record else "",
+        "diagnosis": diagnosis,
+        "diagnosis_text": diagnosis_text,
+        "treatment_plan": record.treatment_plan if record else "",
+        "recommendations": record.recommendations if record else "",
+        "study_summary": build_study_summary(appointment),
+    }
 
 
 
 @login_required
 @transaction.atomic
 def visit_create_page(request, patient_id):
+    if not user_can_manage_appointments(request.user):
+        return deny_with_message(request)
+
     patient = get_object_or_404(Patient, id=patient_id)
-    form = CreateVisitAppointmentForm(request.POST or None)
+    initial = {"patient": patient}
+    form = CreateVisitAppointmentForm(request.POST or None, initial=initial)
+    form.fields["patient"].queryset = Patient.objects.filter(id=patient.id)
     if request.method == "POST" and form.is_valid():
-        appointment = form.save(patient=patient, registrar=request.user)
+        appointment = form.save(created_by=request.user)
         messages.success(request, "Обращение, прием и оплата созданы. Карточка отправлена врачу.")
         return redirect("appointment_detail_page", appointment_id=appointment.id)
     return render(request, "outpatient/visit_form.html", {"form": form, "patient": patient})
@@ -273,6 +128,9 @@ def appointment_detail_page(request, appointment_id):
             "doctor",
             "service",
             "payment",
+            "medical_record",
+            "medical_record__preliminary_icd10",
+            "medical_record__clinical_icd10",
             "created_from_referral",
             "created_from_referral__source_appointment",
             "created_from_referral__source_appointment__doctor",
@@ -283,11 +141,29 @@ def appointment_detail_page(request, appointment_id):
         id=appointment_id,
     )
 
+    if not user_can_view_appointment(request.user, appointment):
+        return deny_with_message(request)
+
     payment = getattr(appointment, "payment", None)
     payment_status_form = PaymentStatusUpdateForm(
         current_status=payment.status if payment else "not_paid"
     )
-    return render(request, "outpatient/appointment_detail.html", {"appointment": appointment})
+    return render(
+        request,
+        "outpatient/appointment_detail.html",
+        {
+            "appointment": appointment,
+            "payment_status_form": payment_status_form,
+            "can_manage_appointments": user_can_manage_appointments(request.user),
+            "can_update_payment": user_can_manage_appointments(request.user),
+            "can_consult": user_can_consult_appointment(request.user, appointment),
+            "can_open_inpatient_record": (
+                user_can_consult_appointment(request.user, appointment)
+                and hasattr(appointment, "medical_record")
+                and appointment.medical_record.outcome == "hospitalization_required"
+            ),
+        },
+    )
 
 
 @login_required
@@ -313,12 +189,118 @@ def doctor_queue_page(request):
 
 
 @login_required
+def patient_history_page(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    appointments = (
+        Appointment.objects.filter(patient=patient)
+        .select_related("visit", "doctor", "doctor__specialty", "service", "payment", "medical_record")
+        .order_by("-appointment_date", "-appointment_time", "-id")
+    )
+
+    if not user_can_manage_appointments(request.user):
+        doctor = get_user_doctor(request.user)
+        if not doctor:
+            return deny_with_message(request)
+        appointments = appointments.filter(doctor=doctor)
+
+    return render(
+        request,
+        "outpatient/patient_history.html",
+        {
+            "patient": patient,
+            "appointments": appointments,
+        },
+    )
+
+
+@login_required
+def unpaid_appointments_page(request):
+    if not user_can_manage_appointments(request.user):
+        return deny_with_message(request)
+
+    appointments = (
+        Appointment.objects.filter(Q(payment__isnull=True) | Q(payment__status__in=["not_paid", "partial"]))
+        .exclude(status="cancelled")
+        .select_related("patient", "visit", "doctor", "doctor__specialty", "service", "payment")
+        .order_by("appointment_date", "appointment_time", "id")
+    )
+
+    return render(
+        request,
+        "outpatient/unpaid_appointments.html",
+        {"appointments": appointments},
+    )
+
+
+@login_required
+def inpatient_records_page(request):
+    if not (user_can_manage_appointments(request.user) or user_can_do_clinical_work(request.user)):
+        return deny_with_message(request)
+
+    status = (request.GET.get("status") or "active").strip()
+    records = (
+        InpatientRecord.objects.select_related(
+            "patient",
+            "admitting_doctor",
+            "admitting_doctor__specialty",
+            "source_appointment",
+            "diagnosis",
+        )
+        .order_by("-admission_date", "-updated_at")
+    )
+
+    if status == "active":
+        records = records.filter(status__in=["draft", "admitted"])
+    elif status in {"draft", "admitted", "discharged", "cancelled"}:
+        records = records.filter(status=status)
+    else:
+        status = "all"
+
+    query = (request.GET.get("q") or "").strip()
+    if query:
+        records = records.filter(
+            Q(patient__last_name__icontains=query)
+            | Q(patient__first_name__icontains=query)
+            | Q(patient__middle_name__icontains=query)
+            | Q(patient__iin__icontains=query)
+            | Q(department__icontains=query)
+            | Q(ward__icontains=query)
+            | Q(diagnosis_text__icontains=query)
+            | Q(diagnosis__code__icontains=query)
+            | Q(diagnosis__name__icontains=query)
+        )
+
+    counts = {
+        "active": InpatientRecord.objects.filter(status__in=["draft", "admitted"]).count(),
+        "draft": InpatientRecord.objects.filter(status="draft").count(),
+        "admitted": InpatientRecord.objects.filter(status="admitted").count(),
+        "discharged": InpatientRecord.objects.filter(status="discharged").count(),
+        "cancelled": InpatientRecord.objects.filter(status="cancelled").count(),
+        "all": InpatientRecord.objects.count(),
+    }
+
+    return render(
+        request,
+        "outpatient/inpatient_records.html",
+        {
+            "records": records,
+            "status": status,
+            "query": query,
+            "counts": counts,
+        },
+    )
+
+
+@login_required
 @transaction.atomic
 def appointment_consultation_page(request, appointment_id):
     appointment = get_object_or_404(
         Appointment.objects.select_related("patient", "visit", "doctor", "service", "payment"),
         id=appointment_id,
     )
+    if not user_can_consult_appointment(request.user, appointment):
+        return deny_with_message(request, "Врач может вести только свои приемы.")
+
     medical_record = MedicalRecord.objects.filter(appointment=appointment).first()
 
     record_form = MedicalRecordForm(request.POST or None, instance=medical_record, prefix="record")
@@ -415,15 +397,11 @@ def appointment_consultation_page(request, appointment_id):
                 )
 
             messages.success(request, "Прием завершен, медицинская запись сохранена.")
+            if record.outcome == "hospitalization_required":
+                return redirect("inpatient_record_page", appointment_id=appointment.id)
             return redirect("appointment_detail_page", appointment_id=appointment.id)
 
         messages.error(request, "Форма не сохранена. Проверьте ошибки ниже.")
-        print("record_form.errors =", record_form.errors)
-        print("record_form.non_field_errors =", record_form.non_field_errors())
-        print("referral_form.errors =", referral_form.errors)
-        print("referral_form.non_field_errors =", referral_form.non_field_errors())
-        print("study_formset.errors =", study_formset.errors)
-        print("study_formset.non_form_errors =", study_formset.non_form_errors())
 
     if appointment.status == "waiting":
         appointment.status = "in_progress"
@@ -444,10 +422,88 @@ def appointment_consultation_page(request, appointment_id):
     )
 
 
+@login_required
+def appointment_print_page(request, appointment_id):
+    appointment = get_object_or_404(
+        Appointment.objects.select_related(
+            "patient",
+            "visit",
+            "doctor",
+            "doctor__specialty",
+            "service",
+            "payment",
+            "medical_record",
+            "medical_record__preliminary_icd10",
+            "medical_record__clinical_icd10",
+        ).prefetch_related("study_results", "study_results__study"),
+        id=appointment_id,
+    )
+
+    if not user_can_view_appointment(request.user, appointment):
+        return deny_with_message(request)
+
+    return render(request, "outpatient/appointment_print.html", {"appointment": appointment})
+
+
+@login_required
+@transaction.atomic
+def inpatient_record_page(request, appointment_id):
+    appointment = get_object_or_404(
+        Appointment.objects.select_related(
+            "patient",
+            "visit",
+            "doctor",
+            "doctor__specialty",
+            "service",
+            "medical_record",
+            "medical_record__preliminary_icd10",
+            "medical_record__clinical_icd10",
+            "inpatient_record",
+        ).prefetch_related("study_results", "study_results__study"),
+        id=appointment_id,
+    )
+
+    if not user_can_consult_appointment(request.user, appointment):
+        return deny_with_message(request)
+
+    medical_record = getattr(appointment, "medical_record", None)
+    if not medical_record or medical_record.outcome != "hospitalization_required":
+        messages.warning(request, "Стационарная карта открывается для приемов с итогом “Требуется госпитализация”.")
+        return redirect("appointment_detail_page", appointment_id=appointment.id)
+
+    inpatient_record, created = InpatientRecord.objects.get_or_create(
+        source_appointment=appointment,
+        defaults=inpatient_defaults_from_appointment(appointment, request.user),
+    )
+
+    form = InpatientRecordForm(request.POST or None, instance=inpatient_record)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Стационарная карта сохранена.")
+        return redirect("inpatient_record_page", appointment_id=appointment.id)
+
+    if created:
+        messages.info(request, "Создан черновик стационарной карты на основе завершенного приема.")
+
+    return render(
+        request,
+        "outpatient/inpatient_record.html",
+        {
+            "appointment": appointment,
+            "medical_record": medical_record,
+            "inpatient_record": inpatient_record,
+            "form": form,
+        },
+    )
+
+
 
 @login_required
 @transaction.atomic
 def reserve_appointment_page(request):
+    if not user_can_manage_appointments(request.user):
+        return deny_with_message(request)
+
     doctor_id = request.GET.get("doctor")
     raw_date = request.GET.get("date")
     raw_time = request.GET.get("time")
@@ -493,6 +549,9 @@ def reserve_appointment_page(request):
 @login_required
 @transaction.atomic
 def activate_reservation_page(request, appointment_id):
+    if not user_can_manage_appointments(request.user):
+        return deny_with_message(request)
+
     appointment = get_object_or_404(Appointment, id=appointment_id)
 
     if appointment.status != "reserved":
@@ -511,6 +570,9 @@ def activate_reservation_page(request, appointment_id):
 @login_required
 @transaction.atomic
 def cancel_reservation_page(request, appointment_id):
+    if not user_can_manage_appointments(request.user):
+        return deny_with_message(request)
+
     appointment = get_object_or_404(Appointment, id=appointment_id)
 
     if appointment.is_locked or appointment.status in {"completed", "in_progress"}:
@@ -560,6 +622,9 @@ def icd10_search_api(request):
 @login_required
 @transaction.atomic
 def appointment_payment_status_update_page(request, appointment_id):
+    if not user_can_manage_appointments(request.user):
+        return deny_with_message(request)
+
     appointment = get_object_or_404(
         Appointment.objects.select_related("payment", "service"),
         id=appointment_id,

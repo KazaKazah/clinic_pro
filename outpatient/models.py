@@ -152,9 +152,9 @@ class Appointment(models.Model):
         if duplicate_exists.exists():
             raise ValidationError("У этого врача уже есть прием на выбранные дату и время.")
 
-        @property
-        def can_cancel(self):
-            return not self.is_locked and self.status not in {"completed", "cancelled"}
+    @property
+    def can_cancel(self):
+        return not self.is_locked and self.status not in {"completed", "cancelled"}
     
 
 class ICD10Diagnosis(models.Model):
@@ -350,3 +350,69 @@ class DiagnosticStudyResult(models.Model):
 
     def __str__(self):
         return f"{self.study} - {self.result_value or 'без результата'}"
+
+
+class InpatientRecord(models.Model):
+    STATUS_CHOICES = [
+        ("draft", "Черновик"),
+        ("admitted", "Госпитализирован"),
+        ("discharged", "Выписан"),
+        ("cancelled", "Отменен"),
+    ]
+
+    source_appointment = models.OneToOneField(
+        Appointment,
+        on_delete=models.PROTECT,
+        related_name="inpatient_record",
+        verbose_name="Амбулаторный прием-основание",
+    )
+    patient = models.ForeignKey(
+        "patients.Patient",
+        on_delete=models.PROTECT,
+        verbose_name="Пациент",
+    )
+    admitting_doctor = models.ForeignKey(
+        Doctor,
+        on_delete=models.PROTECT,
+        verbose_name="Направивший врач",
+    )
+    admission_date = models.DateField("Дата госпитализации", default=timezone.localdate)
+    department = models.CharField("Отделение", max_length=150, blank=True)
+    ward = models.CharField("Палата", max_length=50, blank=True)
+    bed = models.CharField("Койка", max_length=50, blank=True)
+    status = models.CharField("Статус", max_length=20, choices=STATUS_CHOICES, default="draft")
+
+    admission_reason = models.TextField("Основание для госпитализации", blank=True)
+    complaints = models.TextField("Жалобы при поступлении", blank=True)
+    anamnesis = models.TextField("Анамнез", blank=True)
+    objective_status = models.TextField("Объективный статус", blank=True)
+    diagnosis = models.ForeignKey(
+        ICD10Diagnosis,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name="Диагноз МКБ-10",
+    )
+    diagnosis_text = models.TextField("Диагноз текстом", blank=True)
+    treatment_plan = models.TextField("План обследования и лечения", blank=True)
+    recommendations = models.TextField("Рекомендации из амбулаторного приема", blank=True)
+    study_summary = models.TextField("Данные исследований до госпитализации", blank=True)
+    daily_notes = models.TextField("Дневниковые записи", blank=True)
+    discharge_summary = models.TextField("Выписной эпикриз", blank=True)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_inpatient_records",
+        verbose_name="Создал",
+    )
+    created_at = models.DateTimeField("Создана", auto_now_add=True)
+    updated_at = models.DateTimeField("Обновлена", auto_now=True)
+
+    class Meta:
+        ordering = ["-admission_date", "-created_at"]
+        verbose_name = "Стационарная карта"
+        verbose_name_plural = "Стационарные карты"
+
+    def __str__(self):
+        return f"Стационарная карта: {self.patient} от {self.admission_date}"

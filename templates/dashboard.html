@@ -3,46 +3,70 @@
 {% block title %}Панель регистратора{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+<div class="clinic-command mb-3">
     <div>
-        <h1 class="h3 mb-1">Панель регистратора</h1>
-        <div class="text-muted">Сегодня: {{ today|date:"d.m.Y" }}</div>
+        <div class="clinic-command-kicker">Операционная панель</div>
+        <h1 class="clinic-command-title">Панель медицинского центра</h1>
+        <div class="clinic-command-subtitle">Сегодня: {{ today|date:"d.m.Y" }}</div>
     </div>
-    <a class="btn btn-primary" href="{% url 'patient_search_page' %}">Новое обращение</a>
+    <div class="quick-actions" aria-label="Быстрые действия">
+        <a class="quick-action primary-action" href="{% url 'patient_search_page' %}">
+            <span class="quick-action-mark">+</span>
+            <strong>Новое обращение</strong>
+        </a>
+        <a class="quick-action" href="{% url 'unpaid_appointments_page' %}">
+            <span class="quick-action-mark">₸</span>
+            <strong>Неоплаченные</strong>
+        </a>
+        <a class="quick-action" href="{% url 'doctor_queue_page' %}">
+            <span class="quick-action-mark">→</span>
+            <strong>Очередь врача</strong>
+        </a>
+        <a class="quick-action" href="{% url 'inpatient_records_page' %}">
+            <span class="quick-action-mark">□</span>
+            <strong>Стационар</strong>
+        </a>
+    </div>
 </div>
 
 <div class="dashboard-stats mb-4">
-    <div class="stat-card border-warning">
+    <div class="stat-card stat-warning">
+        <div class="stat-icon">₸</div>
         <div class="stat-label">Ожидают оплаты</div>
         <div class="stat-value">{{ waiting_payment_count }}</div>
         <div class="stat-sub">Не оплачено</div>
     </div>
 
-    <div class="stat-card border-primary">
+    <div class="stat-card stat-primary">
+        <div class="stat-icon">→</div>
         <div class="stat-label">Ожидают врача</div>
         <div class="stat-value">{{ waiting_doctor_count }}</div>
         <div class="stat-sub">В очереди</div>
     </div>
 
-    <div class="stat-card border-info">
+    <div class="stat-card stat-info">
+        <div class="stat-icon">●</div>
         <div class="stat-label">На приеме</div>
         <div class="stat-value">{{ in_progress_count }}</div>
         <div class="stat-sub">Идет прием</div>
     </div>
 
-    <div class="stat-card border-success">
+    <div class="stat-card stat-success">
+        <div class="stat-icon">✓</div>
         <div class="stat-label">Завершены</div>
         <div class="stat-value">{{ completed_count }}</div>
         <div class="stat-sub">Закрытые приемы</div>
     </div>
 
-    <div class="stat-card border-secondary">
+    <div class="stat-card stat-secondary">
+        <div class="stat-icon">↗</div>
         <div class="stat-label">Перенаправлены</div>
         <div class="stat-value">{{ referred_count }}</div>
         <div class="stat-sub">От специалистов</div>
     </div>
 
-    <div class="stat-card border-dark">
+    <div class="stat-card stat-dark">
+        <div class="stat-icon">Σ</div>
         <div class="stat-label">Плановая сумма</div>
         <div class="stat-value money">{{ expected_amount }} тг</div>
         <div class="stat-sub">По услугам за день</div>
@@ -50,10 +74,11 @@
 </div>
 
 <div class="dashboard-panel mb-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="panel-heading">
         <div>
-            <h2 class="h5 mb-1">Календарь специалиста</h2>
-            <div class="text-muted small">
+            <div class="panel-kicker">Расписание</div>
+            <h2 class="panel-title">Календарь специалиста</h2>
+            <div class="panel-subtitle">
                 Неделя: {{ week_start|date:"d.m.Y" }} - {{ next_week|date:"d.m.Y" }}
             </div>
         </div>
@@ -199,14 +224,15 @@
 
 
 <div class="dashboard-panel">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="panel-heading">
         <div>
-            <h2 class="h5 mb-1">Сегодняшние приемы</h2>
-            <div class="text-muted small">
+            <div class="panel-kicker">Пациентопоток</div>
+            <h2 class="panel-title">Сегодняшние приемы</h2>
+            <div class="panel-subtitle">
                 Обычные обращения, перенаправления от врачей, оплата и текущий статус приема.
             </div>
         </div>
-        <div class="small text-muted">
+        <div class="paid-chip">
             Оплачено: <strong>{{ paid_amount }} тг</strong>
         </div>
     </div>
@@ -887,6 +913,327 @@ td.time-col {
     background: #0d6efd;
     border-color: #0d6efd;
     color: #fff;
+}
+
+.clinic-command {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid #d7e5e9;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 8px 22px rgba(18, 50, 58, .05);
+    padding: 16px 18px;
+}
+
+.clinic-command-kicker,
+.panel-kicker {
+    color: #168aad;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.clinic-command-title {
+    color: #12323a;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+    margin: 3px 0 5px;
+}
+
+.clinic-command-subtitle,
+.panel-subtitle {
+    color: #60747b;
+}
+
+.quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.quick-action {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    border: 1px solid #d7e5e9;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .9);
+    color: #12323a;
+    min-height: 42px;
+    padding: 8px 12px;
+    text-decoration: none;
+}
+
+.quick-action:hover {
+    border-color: #168aad;
+    background: #f2fbfd;
+    color: #0f6f8e;
+}
+
+.quick-action.primary-action {
+    border-color: #168aad;
+    background: #168aad;
+    color: #fff;
+}
+
+.quick-action.primary-action:hover {
+    background: #0f6f8e;
+    color: #fff;
+}
+
+.quick-action-mark {
+    align-items: center;
+    background: #e9f7fb;
+    border-radius: 8px;
+    color: #168aad;
+    display: inline-flex;
+    font-weight: 800;
+    height: 26px;
+    justify-content: center;
+    width: 26px;
+}
+
+.primary-action .quick-action-mark {
+    background: rgba(255, 255, 255, .18);
+    color: #fff;
+}
+
+.quick-action strong {
+    font-size: 14px;
+}
+
+.dashboard-stats {
+    gap: 14px;
+}
+
+.stat-card {
+    border: 1px solid #d7e5e9 !important;
+    border-top: 4px solid #168aad !important;
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(18, 50, 58, .06);
+    min-height: 128px;
+    position: relative;
+}
+
+.stat-card.stat-warning {
+    border-top-color: #d99b24 !important;
+}
+
+.stat-card.stat-primary {
+    border-top-color: #168aad !important;
+}
+
+.stat-card.stat-info {
+    border-top-color: #3aa7c8 !important;
+}
+
+.stat-card.stat-success {
+    border-top-color: #2d9d78 !important;
+}
+
+.stat-card.stat-secondary {
+    border-top-color: #7b8790 !important;
+}
+
+.stat-card.stat-dark {
+    border-top-color: #12323a !important;
+}
+
+.stat-icon {
+    align-items: center;
+    background: #e9f7fb;
+    border-radius: 8px;
+    color: #168aad;
+    display: inline-flex;
+    font-weight: 800;
+    height: 34px;
+    justify-content: center;
+    margin-bottom: 10px;
+    width: 34px;
+}
+
+.stat-card.stat-warning .stat-icon {
+    background: #fff5df;
+    color: #9a6710;
+}
+
+.stat-card.stat-success .stat-icon {
+    background: #e8f7f1;
+    color: #21785b;
+}
+
+.stat-card.stat-dark .stat-icon {
+    background: #e8eef0;
+    color: #12323a;
+}
+
+.stat-label {
+    color: #60747b;
+    font-weight: 700;
+}
+
+.stat-value {
+    color: #12323a;
+    font-weight: 800;
+}
+
+.dashboard-panel {
+    border: 1px solid #d7e5e9;
+    border-radius: 8px;
+    box-shadow: 0 14px 32px rgba(18, 50, 58, .07);
+}
+
+.panel-heading {
+    align-items: center;
+    border-bottom: 1px solid #edf3f5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    margin: -2px -2px 16px;
+    padding-bottom: 14px;
+}
+
+.panel-title {
+    color: #12323a;
+    font-size: 22px;
+    font-weight: 800;
+    margin: 2px 0;
+}
+
+.paid-chip {
+    background: #e8f7f1;
+    border: 1px solid #c7eadc;
+    border-radius: 8px;
+    color: #21785b;
+    padding: 8px 12px;
+}
+
+.doctor-switcher,
+.selected-doctor-card {
+    border-color: #cfe7ed;
+    background: #f6fbfc;
+}
+
+.doctor-switcher-item {
+    border-color: #d7e5e9;
+    border-radius: 8px;
+}
+
+.doctor-switcher-item.active {
+    border-color: #168aad;
+    background: #e9f7fb;
+}
+
+.specialist-calendar-wrap {
+    border-color: #d7e5e9;
+    border-radius: 8px;
+}
+
+.specialist-week-calendar th {
+    background: #f4fafb;
+}
+
+.specialist-week-calendar td {
+    background: #fff;
+}
+
+.time-col {
+    background: #f4fafb !important;
+    color: #31545d;
+}
+
+th.today-col {
+    background: #dff3f8 !important;
+}
+
+td.today-col {
+    background: #f3fbfd !important;
+}
+
+.calendar-appointment {
+    border-color: #cfe7ed;
+    border-left-color: #168aad;
+    border-radius: 8px;
+    background: #f7fcfd;
+}
+
+.calendar-appointment:hover {
+    background: #e9f7fb;
+}
+
+.calendar-empty {
+    border-color: #cfe7ed;
+    border-radius: 8px;
+    color: #789098;
+}
+
+.calendar-empty-link:hover {
+    border-color: #168aad;
+    background: #e9f7fb;
+    color: #0f6f8e;
+}
+
+.appointment-filter {
+    border-color: #d7e5e9;
+    border-radius: 8px;
+    color: #31545d;
+}
+
+.appointment-filter:hover {
+    background: #e9f7fb;
+}
+
+.appointment-filter.active {
+    background: #168aad;
+    border-color: #168aad;
+}
+
+.dashboard-table {
+    --bs-table-hover-bg: #f2fbfd;
+}
+
+.dashboard-table thead th {
+    background: #f4fafb;
+    border-bottom: 1px solid #d7e5e9;
+    color: #31545d;
+    font-size: 13px;
+}
+
+.dashboard-table tbody td {
+    border-color: #edf3f5;
+}
+
+@media (max-width: 992px) {
+    .clinic-command {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .quick-actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 768px) {
+    .clinic-command {
+        padding: 16px;
+    }
+
+    .clinic-command-title {
+        font-size: 24px;
+    }
+
+    .quick-action {
+        flex: 1 1 100%;
+        min-height: 42px;
+    }
 }
 
 

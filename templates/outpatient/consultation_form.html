@@ -6,7 +6,9 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
         <h1 class="h3 mb-1">Прием врача</h1>
-        <div class="text-muted">{{ appointment.patient.full_name }} · ИИН {{ appointment.patient.iin }} · {{ appointment.service.name }}</div>
+        <div class="text-muted">
+            {{ appointment.patient.full_name }} · ИИН {{ appointment.patient.iin }} · {{ appointment.service.name }}
+        </div>
     </div>
     <a class="btn btn-outline-primary" href="{% url 'appointment_detail_page' appointment.id %}">Карточка приема</a>
 </div>
@@ -19,23 +21,40 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Пациент</dt>
                     <dd class="col-sm-8">{{ appointment.patient.full_name }}</dd>
+
                     <dt class="col-sm-4">Телефон</dt>
                     <dd class="col-sm-8">{{ appointment.patient.phone }}</dd>
+
                     <dt class="col-sm-4">Причина</dt>
                     <dd class="col-sm-8">{{ appointment.visit.reason }}</dd>
                 </dl>
             </div>
         </div>
     </div>
+
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <h2 class="h5">Оплата и прием</h2>
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Оплата</dt>
-                    <dd class="col-sm-8">{{ appointment.payment.get_status_display }}</dd>
+                    <dd class="col-sm-8">
+                        {% if appointment.payment %}
+                            {{ appointment.payment.get_status_display }}
+                        {% else %}
+                            Не указано
+                        {% endif %}
+                    </dd>
+
                     <dt class="col-sm-4">Сумма</dt>
-                    <dd class="col-sm-8">{{ appointment.payment.amount }} тг</dd>
+                    <dd class="col-sm-8">
+                        {% if appointment.payment %}
+                            {{ appointment.payment.amount }} тг
+                        {% else %}
+                            Не указана
+                        {% endif %}
+                    </dd>
+
                     <dt class="col-sm-4">Статус</dt>
                     <dd class="col-sm-8">{{ appointment.get_status_display }}</dd>
                 </dl>
@@ -46,6 +65,7 @@
 
 <form class="card card-body shadow-sm consultation-form" method="post" novalidate>
     {% csrf_token %}
+
     {% if form.non_field_errors %}
         <div class="alert alert-danger mb-3">
             {{ form.non_field_errors }}
@@ -58,224 +78,228 @@
         </div>
     {% endif %}
 
-    <div class="medical-editor-layout">
-    <div class="medical-editor-sidebar">
-        <div class="medical-editor-sidebar-title">Разделы карты</div>
-
-        <div class="medical-section-list">
-            {% for field in form %}
-                {% if field.name == "complaints" or field.name == "anamnesis_disease" or field.name == "anamnesis_life" or field.name == "status_praesens" or field.name == "gynecological_anamnesis" or field.name == "diagnosis_reasoning" or field.name == "treatment_plan" or field.name == "recommendations" %}
-                    <button
-                        class="medical-section-button"
-                        type="button"
-                        data-target="field-panel-{{ field.name }}"
-                    >
-                        {{ field.label }}
-                    </button>
-                {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-
-    <div class="medical-editor-main">
-        {% for field in form %}
-            {% if field.name == "complaints" or field.name == "anamnesis_disease" or field.name == "anamnesis_life" or field.name == "status_praesens" or field.name == "gynecological_anamnesis" or field.name == "diagnosis_reasoning" or field.name == "treatment_plan" or field.name == "recommendations" %}
-                <div class="medical-field-panel" id="field-panel-{{ field.name }}">
-                    <div class="medical-editor-card">
-                        <div class="medical-editor-card-header">
-                            <h2 class="h5 mb-0">{{ field.label }}</h2>
-                        </div>
-                        <div class="medical-editor-card-body">
-                            {{ field }}
-                            {% if field.errors %}
-                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            {% endif %}
-        {% endfor %}
-
-
-
-
-        <div class="medical-dictionary-card mt-3">
-    <h2 class="h5 mb-3">Диагнозы и итог приема</h2>
-
-    <div class="row g-3">
-        <div class="col-md-6">
-            <label class="form-label">Предварительный диагноз по МКБ-10</label>
-            {{ form.preliminary_icd10 }}
-
-            <div class="icd10-search-block" data-target="id_record-preliminary_icd10">
-                <input
-                    type="text"
-                    class="form-control icd10-search-input"
-                    placeholder="Введите код, название или ключевые слова"
-                    autocomplete="off"
-                >
-                <div class="form-text">Например: A00, холера, пневмония, гипертензия</div>
-                <div class="icd10-selected mt-2 text-muted small"></div>
-                <div class="list-group icd10-results mt-2"></div>
-            </div>
-
-            {% if form.preliminary_icd10.errors %}
-                <div class="text-danger small mt-1">{{ form.preliminary_icd10.errors|striptags }}</div>
-            {% endif %}
-        </div>
-
-        <div class="col-md-6">
-            <label class="form-label">Клинический диагноз по МКБ-10</label>
-            {{ form.clinical_icd10 }}
-
-            <div class="icd10-search-block" data-target="id_record-clinical_icd10">
-                <input
-                    type="text"
-                    class="form-control icd10-search-input"
-                    placeholder="Введите код, название или ключевые слова"
-                    autocomplete="off"
-                >
-                <div class="form-text">Например: I10, J18.9, гастрит, диабет</div>
-                <div class="icd10-selected mt-2 text-muted small"></div>
-                <div class="list-group icd10-results mt-2"></div>
-            </div>
-
-            {% if form.clinical_icd10.errors %}
-                <div class="text-danger small mt-1">{{ form.clinical_icd10.errors|striptags }}</div>
-            {% endif %}
-        </div>
-
-        <div class="col-12">
-            <button type="button" class="btn btn-outline-primary" id="generate-diagnosis-reasoning-btn">
-                Сформировать обоснование диагноза
-            </button>
-            <div class="form-text">
-                Текст формируется на основе заполненных полей карты и выбранных диагнозов МКБ-10.
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <label class="form-label" for="{{ form.outcome.id_for_label }}">
-                {{ form.outcome.label }}
-            </label>
-            {{ form.outcome }}
-            {% if form.outcome.errors %}
-                <div class="text-danger small mt-1">{{ form.outcome.errors|striptags }}</div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-
-
-
-    </div>
-</div>
-
-
-<div class="medical-dictionary-card mt-3">
-    <h2 class="h5 mb-3">Лабораторные и инструментальные исследования</h2>
-
-    {{ study_formset.management_form }}
-
     {% if study_formset.non_form_errors %}
         <div class="alert alert-danger mb-3">
             {{ study_formset.non_form_errors }}
         </div>
     {% endif %}
 
-    <div id="study-formset">
-        {% for study_form in study_formset %}
-            <div class="study-result-row border rounded p-3 mb-3">
-                {% for hidden in study_form.hidden_fields %}
-                    {{ hidden }}
+    <div class="medical-editor-layout">
+        <div class="medical-editor-sidebar">
+            <div class="medical-editor-sidebar-title">Разделы карты</div>
+
+            <div class="medical-section-list">
+                {% for field in form %}
+                    {% if field.name == "complaints" or field.name == "anamnesis_disease" or field.name == "anamnesis_life" or field.name == "status_praesens" or field.name == "gynecological_anamnesis" or field.name == "diagnosis_reasoning" or field.name == "treatment_plan" or field.name == "recommendations" %}
+                        <button
+                            class="medical-section-button"
+                            type="button"
+                            data-target="field-panel-{{ field.name }}"
+                        >
+                            {{ field.label }}
+                        </button>
+                    {% endif %}
                 {% endfor %}
+            </div>
+        </div>
 
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label" for="{{ study_form.study.id_for_label }}">Исследование</label>
-                        {{ study_form.study }}
-                        {% if study_form.study.errors %}
-                            <div class="text-danger small mt-1">{{ study_form.study.errors|striptags }}</div>
-                        {% endif %}
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label" for="{{ study_form.result_value.id_for_label }}">Результат</label>
-                        {{ study_form.result_value }}
-                        {% if study_form.result_value.errors %}
-                            <div class="text-danger small mt-1">{{ study_form.result_value.errors|striptags }}</div>
-                        {% endif %}
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label d-block">В обоснование</label>
-                        <div class="form-check mt-2">
-                            {{ study_form.include_in_reasoning }}
-                            <label class="form-check-label" for="{{ study_form.include_in_reasoning.id_for_label }}">
-                                Учитывать
-                            </label>
+        <div class="medical-editor-main">
+            {% for field in form %}
+                {% if field.name == "complaints" or field.name == "anamnesis_disease" or field.name == "anamnesis_life" or field.name == "status_praesens" or field.name == "gynecological_anamnesis" or field.name == "diagnosis_reasoning" or field.name == "treatment_plan" or field.name == "recommendations" %}
+                    <div class="medical-field-panel" id="field-panel-{{ field.name }}">
+                        <div class="medical-editor-card">
+                            <div class="medical-editor-card-header">
+                                <h2 class="h5 mb-0">{{ field.label }}</h2>
+                            </div>
+                            <div class="medical-editor-card-body">
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
+                {% endif %}
+            {% endfor %}
 
-                    <div class="col-md-2">
-                        {% if study_form.DELETE %}
-                            <label class="form-label d-block">Удалить</label>
-                            <div class="form-check mt-2">
-                                {{ study_form.DELETE }}
-                                <label class="form-check-label" for="{{ study_form.DELETE.id_for_label }}">
-                                    Удалить
-                                </label>
-                            </div>
+            <div class="medical-dictionary-card mt-3">
+                <h2 class="h5 mb-3">Диагнозы и итог приема</h2>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Предварительный диагноз по МКБ-10</label>
+                        {{ form.preliminary_icd10 }}
+
+                        <div class="icd10-search-block" data-target="id_record-preliminary_icd10">
+                            <input
+                                type="text"
+                                class="form-control icd10-search-input"
+                                placeholder="Введите код, название или ключевые слова"
+                                autocomplete="off"
+                            >
+                            <div class="form-text">Например: A00, холера, пневмония, гипертензия</div>
+                            <div class="icd10-selected mt-2 text-muted small"></div>
+                            <div class="list-group icd10-results mt-2"></div>
+                        </div>
+
+                        {% if form.preliminary_icd10.errors %}
+                            <div class="text-danger small mt-1">{{ form.preliminary_icd10.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Клинический диагноз по МКБ-10</label>
+                        {{ form.clinical_icd10 }}
+
+                        <div class="icd10-search-block" data-target="id_record-clinical_icd10">
+                            <input
+                                type="text"
+                                class="form-control icd10-search-input"
+                                placeholder="Введите код, название или ключевые слова"
+                                autocomplete="off"
+                            >
+                            <div class="form-text">Например: I10, J18.9, гастрит, диабет</div>
+                            <div class="icd10-selected mt-2 text-muted small"></div>
+                            <div class="list-group icd10-results mt-2"></div>
+                        </div>
+
+                        {% if form.clinical_icd10.errors %}
+                            <div class="text-danger small mt-1">{{ form.clinical_icd10.errors|striptags }}</div>
                         {% endif %}
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label" for="{{ study_form.conclusion.id_for_label }}">Заключение</label>
-                        {{ study_form.conclusion }}
-                        {% if study_form.conclusion.errors %}
-                            <div class="text-danger small mt-1">{{ study_form.conclusion.errors|striptags }}</div>
+                        <button type="button" class="btn btn-outline-primary" id="generate-diagnosis-reasoning-btn">
+                            Сформировать обоснование диагноза
+                        </button>
+                        <div class="form-text">
+                            Текст формируется на основе заполненных полей карты, диагнозов МКБ-10 и внесенных исследований.
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ form.outcome.id_for_label }}">
+                            {{ form.outcome.label }}
+                        </label>
+                        {{ form.outcome }}
+                        {% if form.outcome.errors %}
+                            <div class="text-danger small mt-1">{{ form.outcome.errors|striptags }}</div>
                         {% endif %}
                     </div>
                 </div>
             </div>
-        {% endfor %}
-    </div>
-</div>
 
+            <div class="medical-dictionary-card mt-3">
+                <div class="section-card-header">
+                    <div>
+                        <h2 class="h5 mb-1">Лабораторные и инструментальные исследования</h2>
+                        <div class="section-card-subtitle">
+                            Результаты исследований, которые можно учитывать при формировании обоснования диагноза.
+                        </div>
+                    </div>
+                </div>
 
-<div class="medical-dictionary-card mt-3" id="specialist-referral-block">
-    <h2 class="h5 mb-3">Направление к другому специалисту</h2>
-    <div class="alert alert-secondary">
-        Заполняется, если итог приема выбран как “Направлен к другому специалисту”.
-    </div>
+                {{ study_formset.management_form }}
 
-    <div class="row g-3">
-        {% for field in referral_form %}
-            <div class="{% if field.name == 'reason' %}col-12{% else %}col-md-6{% endif %}">
-                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}
-                    <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                {% if study_formset.non_form_errors %}
+                    <div class="alert alert-danger mb-3">
+                        {{ study_formset.non_form_errors }}
+                    </div>
                 {% endif %}
+
+                <div id="study-formset" class="study-grid">
+                    {% for study_form in study_formset %}
+                        <div class="study-card study-result-row">
+                            {% for hidden in study_form.hidden_fields %}
+                                {{ hidden }}
+                            {% endfor %}
+
+                            <div class="study-card-top">
+                                <div class="study-card-title">Исследование {{ forloop.counter }}</div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <label class="form-label" for="{{ study_form.study.id_for_label }}">Исследование</label>
+                                    {{ study_form.study }}
+                                    {% if study_form.study.errors %}
+                                        <div class="text-danger small mt-1">{{ study_form.study.errors|striptags }}</div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label" for="{{ study_form.result_value.id_for_label }}">Результат</label>
+                                    {{ study_form.result_value }}
+                                    {% if study_form.result_value.errors %}
+                                        <div class="text-danger small mt-1">{{ study_form.result_value.errors|striptags }}</div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-md-2">
+                                    <label class="form-label d-block">В обоснование</label>
+                                    <div class="form-check mt-2">
+                                        {{ study_form.include_in_reasoning }}
+                                        <label class="form-check-label" for="{{ study_form.include_in_reasoning.id_for_label }}">
+                                            Учитывать
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-2">
+                                    {% if study_form.DELETE %}
+                                        <label class="form-label d-block">Удалить</label>
+                                        <div class="form-check mt-2">
+                                            {{ study_form.DELETE }}
+                                            <label class="form-check-label" for="{{ study_form.DELETE.id_for_label }}">
+                                                Удалить
+                                            </label>
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label" for="{{ study_form.conclusion.id_for_label }}">Заключение</label>
+                                    {{ study_form.conclusion }}
+                                    {% if study_form.conclusion.errors %}
+                                        <div class="text-danger small mt-1">{{ study_form.conclusion.errors|striptags }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
             </div>
-        {% endfor %}
+
+            <div class="medical-dictionary-card mt-3" id="specialist-referral-block">
+                <h2 class="h5 mb-3">Направление к другому специалисту</h2>
+                <div class="alert alert-secondary">
+                    Заполняется, если итог приема выбран как “Направлен к другому специалисту”.
+                </div>
+
+                <div class="row g-3">
+                    {% for field in referral_form %}
+                        <div class="{% if field.name == 'reason' %}col-12{% else %}col-md-6{% endif %}">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
     </div>
-</div>
-
-
-
 
     <div class="alert alert-info mt-4 mb-0">
         После сохранения прием будет закрыт, а обращение получит итоговый статус: завершено, обследование, госпитализация, повторный прием или направление.
     </div>
+
     <div class="d-flex gap-2 mt-4">
         <button class="btn btn-primary" type="submit">Сохранить и завершить прием</button>
         <a class="btn btn-outline-secondary" href="{% url 'doctor_queue_page' %}">Назад к очереди</a>
     </div>
 </form>
-
-
 
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
 
@@ -390,16 +414,6 @@
     margin-bottom: 0.35rem;
 }
 
-@media (max-width: 900px) {
-    .medical-editor-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .medical-editor-sidebar {
-        position: static;
-    }
-}
-
 .icd10-search-block {
     position: relative;
 }
@@ -422,11 +436,54 @@
     min-height: 20px;
 }
 
+.section-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+    margin-bottom: 14px;
+}
 
+.section-card-subtitle {
+    color: #6c757d;
+    font-size: 14px;
+}
+
+.study-grid {
+    display: grid;
+    gap: 14px;
+}
+
+.study-card {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    background: #f8f9fa;
+    padding: 14px;
+}
+
+.study-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.study-card-title {
+    font-weight: 700;
+    color: #212529;
+}
+
+@media (max-width: 900px) {
+    .medical-editor-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .medical-editor-sidebar {
+        position: static;
+    }
+}
 </style>
 
-
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
@@ -598,7 +655,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
-        function stripHtml(html) {
+    function stripHtml(html) {
         const tmp = document.createElement("div");
         tmp.innerHTML = html || "";
         return (tmp.textContent || tmp.innerText || "").trim();
@@ -734,10 +791,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
-
 });
 </script>
-
-
 
 {% endblock %}

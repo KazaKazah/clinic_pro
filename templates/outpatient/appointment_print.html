@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Консультация {{ appointment.patient.full_name }}</title>
+    <style>
+        body {
+            color: #111;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.45;
+            margin: 32px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 18px;
+        }
+
+        h2 {
+            border-bottom: 1px solid #999;
+            font-size: 16px;
+            margin: 22px 0 10px;
+            padding-bottom: 4px;
+        }
+
+        .meta {
+            display: grid;
+            gap: 6px;
+            grid-template-columns: 180px 1fr;
+            margin-bottom: 6px;
+        }
+
+        .label {
+            color: #555;
+            font-weight: 700;
+        }
+
+        .print-actions {
+            margin-bottom: 20px;
+        }
+
+        .print-actions button,
+        .print-actions a {
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #111;
+            display: inline-block;
+            margin-right: 8px;
+            padding: 7px 12px;
+            text-decoration: none;
+        }
+
+        @media print {
+            body {
+                margin: 18mm;
+            }
+
+            .print-actions {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="print-actions">
+    <button type="button" onclick="window.print()">Печать</button>
+    <a href="{% url 'appointment_detail_page' appointment.id %}">Назад</a>
+</div>
+
+<h1>Медицинская консультация</h1>
+
+<div class="meta">
+    <div class="label">Пациент</div>
+    <div>{{ appointment.patient.full_name }}</div>
+    <div class="label">ИИН</div>
+    <div>{{ appointment.patient.iin }}</div>
+    <div class="label">Дата приема</div>
+    <div>{{ appointment.appointment_date|date:"d.m.Y" }} {{ appointment.appointment_time|time:"H:i" }}</div>
+    <div class="label">Врач</div>
+    <div>{{ appointment.doctor.full_name }}, {{ appointment.doctor.specialty.name }}</div>
+    <div class="label">Услуга</div>
+    <div>{{ appointment.service.name }}</div>
+</div>
+
+{% with record=appointment.medical_record %}
+    {% if record %}
+        <h2>Жалобы</h2>
+        <div>{{ record.complaints|linebreaksbr }}</div>
+
+        <h2>Анамнез</h2>
+        <div>{{ record.anamnesis_disease|default:"Не указан"|linebreaksbr }}</div>
+
+        <h2>Объективный статус</h2>
+        <div>{{ record.status_praesens|default:"Не указан"|linebreaksbr }}</div>
+
+        <h2>Диагноз</h2>
+        {% if record.clinical_icd10 %}
+            <div><strong>{{ record.clinical_icd10.code }}</strong> {{ record.clinical_icd10.name }}</div>
+        {% elif record.preliminary_icd10 %}
+            <div><strong>{{ record.preliminary_icd10.code }}</strong> {{ record.preliminary_icd10.name }}</div>
+        {% else %}
+            <div>Не указан</div>
+        {% endif %}
+        {% if record.diagnosis_reasoning %}
+            <div>{{ record.diagnosis_reasoning|linebreaksbr }}</div>
+        {% endif %}
+
+        {% if appointment.study_results.all %}
+            <h2>Исследования</h2>
+            {% for result in appointment.study_results.all %}
+                <div>
+                    <strong>{{ result.study.name }}</strong>:
+                    {{ result.result_value|default:"без значения" }}
+                    {% if result.conclusion %} · {{ result.conclusion }}{% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <h2>План лечения</h2>
+        <div>{{ record.treatment_plan|default:"Не указан"|linebreaksbr }}</div>
+
+        <h2>Рекомендации</h2>
+        <div>{{ record.recommendations|default:"Не указаны"|linebreaksbr }}</div>
+
+        <h2>Итог</h2>
+        <div>{{ record.get_outcome_display }}</div>
+    {% else %}
+        <h2>Медицинская запись</h2>
+        <div>Медицинская запись по приему еще не создана.</div>
+    {% endif %}
+{% endwith %}
+</body>
+</html>

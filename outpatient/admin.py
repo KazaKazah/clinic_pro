@@ -7,6 +7,7 @@ from .models import (
     DiagnosticStudyResult,
     Doctor,
     ICD10Diagnosis,
+    InpatientRecord,
     MedicalRecord,
     PatientVisit,
     SpecialistReferral,
@@ -35,6 +36,7 @@ class SpecialtyAdmin(admin.ModelAdmin):
 class DoctorAdmin(admin.ModelAdmin):
     list_display = (
         "full_name",
+        "user",
         "specialty",
         "room_number",
         "phone",
@@ -49,6 +51,24 @@ class DoctorAdmin(admin.ModelAdmin):
     list_filter = ("specialty", "is_active")
     autocomplete_fields = ("user", "specialty")
     actions = (activate_items, deactivate_items)
+    fieldsets = (
+        ("Профиль врача", {
+            "fields": (
+                "user",
+                "full_name",
+                "specialty",
+                "room_number",
+                "phone",
+                "is_active",
+            )
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.user_id and obj.user.role != "doctor":
+            obj.user.role = "doctor"
+            obj.user.save(update_fields=["role"])
 
 
 @admin.register(ICD10Diagnosis)
@@ -279,3 +299,33 @@ class DiagnosticStudyResultAdmin(admin.ModelAdmin):
     list_display = ("appointment", "study", "result_value", "include_in_reasoning", "performed_at")
     list_filter = ("study__kind", "include_in_reasoning")
     search_fields = ("study__name", "result_value", "conclusion")
+
+
+@admin.register(InpatientRecord)
+class InpatientRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        "patient",
+        "admission_date",
+        "department",
+        "admitting_doctor",
+        "status",
+        "updated_at",
+    )
+    search_fields = (
+        "patient__last_name",
+        "patient__first_name",
+        "patient__iin",
+        "admitting_doctor__full_name",
+        "diagnosis__code",
+        "diagnosis__name",
+        "diagnosis_text",
+    )
+    list_filter = ("status", "admission_date", "department", "admitting_doctor")
+    readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = (
+        "source_appointment",
+        "patient",
+        "admitting_doctor",
+        "diagnosis",
+        "created_by",
+    )
